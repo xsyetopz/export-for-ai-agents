@@ -23,6 +23,7 @@ const MONTHS = "jan feb mar apr may jun jul aug sep oct nov dec".split(" ");
 const MAX_ITEMS = 5000;
 const EMBEDDED_DATA = "script[data-target='react-app.embeddedData']";
 const MAX_EMBEDDED_DEPTH = 24;
+const MAX_EMBEDDED_SCRIPTS = 8;
 const MAX_EMBEDDED_NODES = 100_000;
 const KINDS = new Set(["issues", "pull", "discussions"]);
 const ID_PREFIX =
@@ -151,14 +152,6 @@ function zonedOnly(value: string | null): string | null {
  */
 function embeddedTimes(doc: Document): Map<string, string> {
   const times = new Map<string, string>();
-  const text = doc.querySelector(EMBEDDED_DATA)?.textContent ?? "";
-  if (!text || text.length > MAX_JSONLD_CHARS) return times;
-  let root: unknown;
-  try {
-    root = JSON.parse(text);
-  } catch {
-    return times;
-  }
   const add = (prefix: string, node: Record<string, unknown>) => {
     const { databaseId, createdAt } = node;
     if (!Number.isSafeInteger(databaseId) || typeof createdAt !== "string")
@@ -167,28 +160,48 @@ function embeddedTimes(doc: Document): Map<string, string> {
     const key = `${prefix}-${databaseId}`;
     if (iso && !times.has(key)) times.set(key, iso);
   };
-  const stack: {
-    value: unknown;
-    depth: number;
-    key: string;
-    parent: string;
-  }[] = [{ value: root, depth: 0, key: "", parent: "" }];
+  // One node budget shared by all scripts, so many blocks cannot multiply the work.
   let seen = 0;
-  while (stack.length && seen++ < MAX_EMBEDDED_NODES) {
-    const { value, depth, key, parent } = stack.pop() as (typeof stack)[number];
-    if (!value || typeof value !== "object" || depth > MAX_EMBEDDED_DEPTH)
+  const scripts = Array.from(doc.querySelectorAll(EMBEDDED_DATA)).slice(
+    0,
+    MAX_EMBEDDED_SCRIPTS,
+  );
+  for (const script of scripts) {
+    if (seen >= MAX_EMBEDDED_NODES) break;
+    const text = script.textContent ?? "";
+    if (!text || text.length > MAX_JSONLD_CHARS) continue;
+    let root: unknown;
+    try {
+      root = JSON.parse(text);
+    } catch {
       continue;
-    if (!Array.isArray(value)) {
-      const node = value as { __typename?: unknown } & Record<string, unknown>;
-      if (node.__typename === "IssueComment") add("issuecomment", node);
-      else if (key === "issue" && parent === "repository" && !node.__typename)
-        add("issue", node);
     }
-    const entries = Array.isArray(value)
-      ? value.map((v, i) => [String(i), v] as const)
-      : Object.entries(value);
-    for (const [k, v] of entries)
-      stack.push({ value: v, depth: depth + 1, key: k, parent: key });
+    const stack: {
+      value: unknown;
+      depth: number;
+      key: string;
+      parent: string;
+    }[] = [{ value: root, depth: 0, key: "", parent: "" }];
+    while (stack.length && seen++ < MAX_EMBEDDED_NODES) {
+      const { value, depth, key, parent } =
+        stack.pop() as (typeof stack)[number];
+      if (!value || typeof value !== "object" || depth > MAX_EMBEDDED_DEPTH)
+        continue;
+      if (!Array.isArray(value)) {
+        const node = value as { __typename?: unknown } & Record<
+          string,
+          unknown
+        >;
+        if (node.__typename === "IssueComment") add("issuecomment", node);
+        else if (key === "issue" && parent === "repository" && !node.__typename)
+          add("issue", node);
+      }
+      const entries = Array.isArray(value)
+        ? value.map((v, i) => [String(i), v] as const)
+        : Object.entries(value);
+      for (const [k, v] of entries)
+        stack.push({ value: v, depth: depth + 1, key: k, parent: key });
+    }
   }
   return times;
 }
@@ -205,10 +218,7 @@ function dateOf(el: Element | null, embedded?: string): string | undefined {
   const month = MONTHS.indexOf((match?.[1] ?? "").toLowerCase()) + 1;
   if (!match || !month) return undefined;
   const day = (match[2] ?? "").padStart(2, "0");
-  // Reject rollover such as "Feb 31".
-  const probe = new Date(Date.UTC(Number(match[3]), month - 1, Number(day)));
-  if (probe.getUTCMonth() !== month - 1 || probe.getUTCDate() !== Number(day))
-    return undefined;
+  // isoDate rejects rollover such as "Feb 31".
   return isoDate(`${match[3]}-${String(month).padStart(2, "0")}-${day}`);
 }
 

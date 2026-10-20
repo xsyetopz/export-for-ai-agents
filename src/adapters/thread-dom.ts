@@ -23,7 +23,27 @@ export function parseInteger(
   return Number.isFinite(n) ? n : undefined;
 }
 
-/** RFC 3339 UTC from an ISO-ish string or epoch seconds; undefined when it does not parse. */
+const DAYS_IN_MONTH = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+
+/** True when the written Y-M-D (and time, if present) is a real calendar moment, before any zone shift. */
+function validLiteral(text: string): boolean {
+  const m = /^(\d{4})-(\d\d)-(\d\d)(?:T(\d\d):(\d\d)(?::(\d\d))?)?/.exec(text);
+  if (!m) return true; // Not the ISO shape; Date.parse decides.
+  const [year, month, day] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  const leap = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+  const max = month === 2 && leap ? 29 : (DAYS_IN_MONTH[month - 1] ?? 0);
+  if (month < 1 || month > 12 || day < 1 || day > max) return false;
+  return (
+    Number(m[4] ?? 0) <= 23 &&
+    Number(m[5] ?? 0) <= 59 &&
+    Number(m[6] ?? 0) <= 59
+  );
+}
+
+/**
+ * RFC 3339 UTC from an ISO-ish string or epoch seconds; undefined when it does not parse. Impossible ISO
+ * dates (Feb 30, hour 24) are rejected; non-ISO strings go to `Date.parse` unchecked.
+ */
 export function isoDate(value: string | null | undefined): string | undefined {
   const text = clean(value);
   if (!text) return undefined;
@@ -32,6 +52,7 @@ export function isoDate(value: string | null | undefined): string | undefined {
   else {
     const normalized = text.replace(/^(\d{4}-\d\d-\d\d) (?=\d)/, "$1T");
     // Dates without a zone ("2026-10-19T10:00:00") are taken as UTC.
+    if (!validLiteral(normalized)) return undefined;
     const zoned =
       /(?:Z|[+-]\d{2}:?\d{2})$/i.test(normalized) || !/T/.test(normalized);
     ms = Date.parse(zoned ? normalized : `${normalized}Z`);

@@ -714,3 +714,49 @@ test("stackexchange matches meta sites", () => {
     stackExchangeAdapter.matches("https://meta.example.com/questions/1/x"),
   ).toBe(false);
 });
+
+test("github embedded JSON: reads every script, skipping bad ones, first value wins", async () => {
+  const base = await fixture("github-issue-react.html");
+  const tag = EMBEDDED_SCRIPT.exec(base)?.[0].trim() as string;
+  const open = /^<script[^>]*>/.exec(tag)?.[0] as string;
+  const dup = (id: number, at: string) =>
+    `${open}${JSON.stringify({ n: { __typename: "IssueComment", databaseId: id, createdAt: at } })}</script>`;
+  const html = base.replace(
+    tag,
+    `${open}{not json</script>${dup(5002, "2026-10-06T14:21:09Z")}${tag}${dup(5002, "2030-01-01T00:00:00Z")}`,
+  );
+  const doc = await run(githubAdapter, REACT_URL, html);
+  expect(find(doc, "issuecomment-5002")).toMatchObject({
+    date: "2026-10-06T14:21:09Z",
+  });
+  expect(find(doc, "issuecomment-5004")).not.toHaveProperty("date");
+  // The comment time lives only in the second script; the first is malformed.
+  const only = `${withoutEmbedded(base)}${open}{bad</script>${dup(5002, "2026-10-06T14:21:09Z")}`;
+  const second = await run(githubAdapter, REACT_URL, only);
+  expect(find(second, "issuecomment-5002")).toMatchObject({
+    date: "2026-10-06T14:21:09Z",
+  });
+});
+
+test("github embedded JSON: script count is capped and the node budget is shared", async () => {
+  const base = await fixture("github-issue-react.html");
+  const tag = EMBEDDED_SCRIPT.exec(base)?.[0].trim() as string;
+  const open = /^<script[^>]*>/.exec(tag)?.[0] as string;
+  const withTime = `${open}${JSON.stringify({ n: { __typename: "IssueComment", databaseId: 5002, createdAt: "2026-10-06T14:21:09Z" } })}</script>`;
+  const filler = `${open}{}</script>`;
+  const fallback = "2026-10-06T00:00:00Z";
+  const ninth = `${withoutEmbedded(base)}${filler.repeat(8)}${withTime}`;
+  const eighth = `${withoutEmbedded(base)}${filler.repeat(7)}${withTime}`;
+  expect(
+    find(await run(githubAdapter, REACT_URL, ninth), "issuecomment-5002"),
+  ).toMatchObject({ date: fallback });
+  expect(
+    find(await run(githubAdapter, REACT_URL, eighth), "issuecomment-5002"),
+  ).toMatchObject({ date: "2026-10-06T14:21:09Z" });
+  // A first script that uses up the whole node budget leaves none for the next one.
+  const big = `${open}${JSON.stringify(new Array(100_001).fill(0))}</script>`;
+  const starved = `${withoutEmbedded(base)}${big}${withTime}`;
+  expect(
+    find(await run(githubAdapter, REACT_URL, starved), "issuecomment-5002"),
+  ).toMatchObject({ date: fallback });
+});
