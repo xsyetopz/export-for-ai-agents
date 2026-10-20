@@ -1,0 +1,35 @@
+{
+  "name": "export-for-ai-agents",
+  "version": "2.0.0",
+  "private": true,
+  "packageManager": "bun@1.4.3",
+  "scripts": {
+    "build": "bun tools/build.ts",
+    "typecheck": "bun --check",
+    "format": "biome format --write .",
+    "format:check": "biome format .",
+    "lint:code": "biome check --formatter-enabled=false --error-on-warnings .",
+    "lint": "markdownlint-cli2",
+    "test": "bun test",
+    "examples": "bun tools/examples.ts",
+    "schemas:check": "bun tools/schemas-check.ts",
+    "commitlint": "commitlint",
+    "prepare": "sh tools/install-hooks.sh",
+    "verify": "bun run typecheck && bun run format:check && bun run lint:code && bun run lint && bun run test && bun run schemas:check && bun run build"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.15",
+    "@commitlint/cli": "^21.2.4",
+    "@commitlint/config-conventional": "^21.2.4",
+    "@types/bun": "^1.4.3",
+    "@types/chrome": "^0.3.5",
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1",
+    "happy-dom": "^21.0.3",
+    "lefthook": "^2.2.2",
+    "markdownlint-cli2": "^0.23.3",
+    "micromark": "^4.0.3",
+    "micromark-extension-gfm-table": "^2.1.2",
+    "typescript": "^7.0.2"
+  }
+}

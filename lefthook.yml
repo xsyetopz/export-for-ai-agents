@@ -1,0 +1,35 @@
+glob_matcher: doublestar
+
+pre-commit:
+  piped: true
+  jobs:
+    # Format first and alone, so later jobs never read files mid-rewrite.
+    - name: format
+      glob: "**/*.{js,jsx,ts,tsx,json,jsonc,mjs,cjs}"
+      run: bunx biome format --write --no-errors-on-unmatched --files-ignore-unknown=true {staged_files}
+      stage_fixed: true
+    - group:
+        parallel: true
+        jobs:
+          - name: lint-code
+            glob: "**/*.{js,jsx,ts,tsx,json,jsonc,mjs,cjs}"
+            run: bunx biome check --formatter-enabled=false --error-on-warnings --no-errors-on-unmatched --files-ignore-unknown=true {staged_files}
+          - name: typecheck
+            glob:
+              - "**/*.{ts,tsx,mjs}"
+              - "tsconfig.json"
+              - "package.json"
+            run: bun run typecheck
+          - name: markdownlint
+            glob: "**/*.md"
+            run: bunx markdownlint-cli2 --no-globs {staged_files}
+
+commit-msg:
+  jobs:
+    - name: commitlint
+      run: bunx commitlint --edit {1}
+
+pre-push:
+  jobs:
+    - name: verify
+      run: bun run verify

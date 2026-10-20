@@ -1,0 +1,15 @@
+{
+  "manifest_version": 3,
+  "name": "Export for AI Agents",
+  "version": "2.0.0",
+  "description": "Export web pages and discussion threads as Markdown or JSONL for AI agents. Runs locally, no API keys.",
+  "permissions": ["activeTab", "scripting", "storage"],
+  "action": {
+    "default_title": "Export for AI Agents",
+    "default_popup": "popup.html"
+  },
+  "background": { "service_worker": "background.js", "type": "module" },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'none'; base-uri 'none'"
+  }
+}

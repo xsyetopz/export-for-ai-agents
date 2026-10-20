@@ -1,0 +1,5 @@
+{"$schema":"https://raw.githubusercontent.com/xsyetopz/export-for-ai-agents/main/schemas/page-export.schema.json","type":"document","url":"https://www.reddit.com/r/x/comments/abc/t/","title":"Thread","captured_at":"2026-09-23T12:34:56Z","adapter":"reddit","scope":"thread","content_trust":"untrusted"}
+{"type":"post","id":"t3_abc","parent_id":null,"title":"Q?","author":"op","score":10,"depth":0,"body":"Body"}
+{"type":"comment","id":"t1_a","parent_id":"t3_abc","author":"u1","score":3,"date":"2026-09-22","depth":0,"body":"top"}
+{"type":"comment","id":"t1_b","parent_id":"t1_a","author":"u2","depth":1,"content":[{"type":"paragraph","text":"reply"}]}
+{"type":"answer","id":"a1","parent_id":"t3_abc","accepted":true,"depth":0,"body":"ans"}

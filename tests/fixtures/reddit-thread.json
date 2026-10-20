@@ -1,0 +1,139 @@
+[
+  {
+    "kind": "Listing",
+    "data": {
+      "children": [
+        {
+          "kind": "t3",
+          "data": {
+            "id": "abc123",
+            "title": "Is this a thread?",
+            "author": "op",
+            "subreddit": "test",
+            "permalink": "/r/test/comments/abc123/is_this_a_thread/",
+            "selftext": "Body **text**",
+            "score": 42,
+            "created_utc": 1789999000,
+            "edited": 1789999500,
+            "num_comments": 7,
+            "is_self": true,
+            "is_gallery": true,
+            "gallery_data": {
+              "items": [
+                {
+                  "media_id": "m1",
+                  "caption": "First [pic]"
+                }
+              ]
+            },
+            "media_metadata": {
+              "m1": {
+                "status": "valid",
+                "s": {
+                  "u": "https://preview.redd.it/m1.jpg?width=640&amp;s=x"
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "kind": "Listing",
+    "data": {
+      "children": [
+        {
+          "kind": "t1",
+          "data": {
+            "id": "c1",
+            "parent_id": "t3_abc123",
+            "author": "alice",
+            "score": 10,
+            "created_utc": 1790000000,
+            "edited": false,
+            "body": "Top comment",
+            "replies": {
+              "kind": "Listing",
+              "data": {
+                "children": [
+                  {
+                    "kind": "t1",
+                    "data": {
+                      "id": "c2",
+                      "parent_id": "t1_c1",
+                      "author": "bob",
+                      "score": 3,
+                      "created_utc": 1790000000,
+                      "edited": false,
+                      "body": "Nested reply",
+                      "replies": {
+                        "kind": "Listing",
+                        "data": {
+                          "children": [
+                            {
+                              "kind": "t1",
+                              "data": {
+                                "id": "c3",
+                                "parent_id": "t1_c2",
+                                "author": "op",
+                                "score": 1,
+                                "created_utc": 1790000000,
+                                "edited": false,
+                                "body": "Deep reply",
+                                "replies": "",
+                                "is_submitter": true,
+                                "distinguished": "moderator"
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            "is_submitter": false
+          }
+        },
+        {
+          "kind": "t1",
+          "data": {
+            "id": "d1",
+            "parent_id": "t3_abc123",
+            "author": "[deleted]",
+            "score": -2,
+            "created_utc": 1790000000,
+            "edited": false,
+            "body": "[deleted]",
+            "replies": ""
+          }
+        },
+        {
+          "kind": "t1",
+          "data": {
+            "id": "r1",
+            "parent_id": "t3_abc123",
+            "author": "carol",
+            "score": 1,
+            "created_utc": 1790000000,
+            "edited": false,
+            "body": "[removed]",
+            "replies": "",
+            "score_hidden": true
+          }
+        },
+        {
+          "kind": "more",
+          "data": {
+            "id": "mm",
+            "parent_id": "t3_abc123",
+            "count": 2,
+            "children": ["c4", "c5"]
+          }
+        }
+      ]
+    }
+  }
+]

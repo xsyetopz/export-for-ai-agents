@@ -1,0 +1,11 @@
+.DS_Store
+Thumbs.db
+node_modules/
+browser-tests.html
+*.zip
+dist/
+HANDOVER.md
+.env
+
+# Impeccable design tooling and review screenshots
+.impeccable/

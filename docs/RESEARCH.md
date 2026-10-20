@@ -1,0 +1,18 @@
+# Format and extraction decisions
+
+Sources checked 2026-09-23. The choices below are engineering judgments based on primary documentation, not a benchmark claim that one encoding is optimal for every model or website.
+
+| Source | Evidence | Decision |
+| --- | --- | --- |
+| [JSON Lines specification](https://jsonlines.org/) | UTF-8, one valid JSON value per line, line-oriented processing, conventional `.jsonl` extension. | Emit one typed object per line with ordinary readable keys; support standard parsers, `jq`, streaming and selective record ingestion. |
+| [Microsoft Playwright MCP](https://github.com/microsoft/playwright-mcp) | Browser agents use structured accessibility snapshots. Its guidance also recognizes the cost of verbose trees. | Keep semantic roles/content and relations; omit generic layout containers and coordinate/interaction state for a content-export task. This extension does not claim to capture Chrome's accessibility tree. |
+| [MDN semantic HTML](https://developer.mozilla.org/en-US/curriculum/core/semantic-html/) and [main element](https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/main) | HTML elements convey machine-readable meaning; `main` identifies dominant document content. | Prefer a visible main landmark, then a sole article; keep a whole-page option because markup quality varies. Several sibling articles remain eligible. |
+| [MDN table element](https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/table) | Tables represent rows and columns; headers/spans contribute meaning. | Preserve a cell matrix with header and span metadata instead of flattening cells into a sentence. |
+| [MDN media `currentSrc`](https://developer.mozilla.org/en-US/docs/Web/API/HTMLMediaElement/currentSrc) | The selected media source can differ from the element's `src`. | Inspect selected/direct/source URLs and keep alternatives. Record unavailable blob streams explicitly. |
+| [Chrome cross-origin requests](https://developer.chrome.com/docs/extensions/develop/concepts/network-requests) | Injected content-script requests follow the page origin's same-origin rules. | Fetch Reddit JSON in the original tab using same-origin credentials; no permanent broad host permission. |
+| [Chrome scripting API](https://developer.chrome.com/docs/extensions/reference/api/scripting) | `activeTab` can authorize injection after a user gesture; injected functions can return results. | Keep the extractor self-contained and run only on the page the user invokes. |
+| [Reddit API reference](https://www.reddit.com/dev/api/) | `raw_json=1` avoids legacy response entity encoding. `morechildren` retrieves omitted comments, at most 100 IDs at a time, one request at a time. | Prefer structured post/comment data, retain native body text, use explicit parent IDs and bounded manual batches. Runtime authorization/availability remains controlled by Reddit. |
+
+JSONL trades some repeated field names for a widely implemented, self-describing format. A custom delimiter format would need escaping rules and bespoke parsers; Markdown alone is convenient for prose but cannot reliably express comment identity, coverage, media alternatives, and table cell spans. No model-specific tokenizer or universal compression ratio is assumed. Character budgets and exact UTF-8 byte sizes are shown instead.
+
+The original supplied Markdown export had no post body, showed unknown authors, and flattened the discussion. Those losses are addressed by using structured Reddit data where available and preserving provenance/completeness when only DOM content is available. The original implementation is not included.

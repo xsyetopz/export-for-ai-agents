@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=360" />
+    <meta name="color-scheme" content="light dark" />
+    <title>Export for AI Agents</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body data-state="loading">
+    <header class="band">
+      <span class="name">Export for AI Agents</span>
+      <span class="host" id="host"></span>
+    </header>
+
+    <main>
+      <fieldset class="segmented" id="format">
+        <legend class="sr">Format</legend>
+        <label>
+          <input type="radio" name="format" value="md" checked />
+          <span>Markdown</span>
+        </label>
+        <label>
+          <input type="radio" name="format" value="jsonl" />
+          <span>JSONL</span>
+        </label>
+      </fieldset>
+
+      <section class="coverage" id="coverage" aria-label="Coverage">
+        <div class="stat">
+          <span class="num" id="n-items">–</span>
+          <span class="lbl" id="l-items">Blocks</span>
+        </div>
+        <div class="stat" id="stat-truncated">
+          <span class="num" id="n-truncated">–</span>
+          <span class="lbl">Not captured</span>
+        </div>
+        <div class="stat">
+          <span class="num" id="n-size">–</span>
+          <span class="lbl">KB</span>
+        </div>
+      </section>
+
+      <p class="note" id="note" role="status">Capturing…</p>
+
+      <div class="problem" id="problem" hidden>
+        <p id="problem-message" role="alert"></p>
+        <p id="problem-retry" class="muted" hidden></p>
+      </div>
+
+      <div class="actions">
+        <button type="button" class="primary" id="copy">Copy</button>
+        <button type="button" class="outline" id="save">Save .md</button>
+        <button type="button" class="text" id="refresh">Refresh</button>
+      </div>
+      <p class="sr" id="confirm" role="status" aria-live="polite"></p>
+
+      <details id="advanced">
+        <summary>
+          <svg
+            class="chevron"
+            width="10"
+            height="10"
+            viewBox="0 0 10 10"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            aria-hidden="true"
+          >
+            <path d="M3 1.5 6.5 5 3 8.5" />
+          </svg>
+          Advanced
+        </summary>
+        <div class="advanced-body">
+          <label class="field">
+            <span>Preview</span>
+            <textarea id="preview" readonly spellcheck="false" rows="10"></textarea>
+          </label>
+          <p class="hint" id="preview-note" hidden>
+            Preview truncated; Copy and Save use the full text.
+          </p>
+          <label class="field">
+            <span>Scope</span>
+            <select id="scope">
+              <option value="auto">Auto (main content)</option>
+              <option value="page">Whole page</option>
+              <option value="selection">Selection</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Size limit (blocks)</span>
+            <select id="budget">
+              <option value="1000">1,000</option>
+              <option value="5000">5,000</option>
+              <option value="">20,000 (default)</option>
+              <option value="50000">50,000</option>
+            </select>
+          </label>
+          <fieldset class="reddit" id="reddit" disabled>
+            <legend>Reddit</legend>
+            <label class="field">
+              <span>Comment sort</span>
+              <select id="reddit-sort">
+                <option value="confidence">Best</option>
+                <option value="top">Top</option>
+                <option value="new">New</option>
+                <option value="old">Old</option>
+                <option value="controversial">Controversial</option>
+                <option value="qa">Q&amp;A</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>Load more comments (requests, 0 = none)</span>
+              <input type="number" id="reddit-more" min="0" max="20" step="1" />
+            </label>
+          </fieldset>
+        </div>
+      </details>
+    </main>
+
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>

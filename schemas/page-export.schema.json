@@ -1,0 +1,475 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/xsyetopz/export-for-ai-agents/main/schemas/page-export.schema.json",
+  "title": "Export for AI Agents JSONL line",
+  "description": "Schema for one line of a JSONL export. Line 1 is the document header; each following line is one block.",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/document"
+    },
+    {
+      "$ref": "#/$defs/post"
+    },
+    {
+      "$ref": "#/$defs/comment"
+    },
+    {
+      "$ref": "#/$defs/answer"
+    },
+    {
+      "$ref": "#/$defs/content_block"
+    }
+  ],
+  "$defs": {
+    "document": {
+      "type": "object",
+      "properties": {
+        "$schema": {
+          "type": "string"
+        },
+        "type": {
+          "const": "document"
+        },
+        "url": {
+          "type": "string",
+          "format": "uri"
+        },
+        "canonical": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "language": {
+          "type": "string"
+        },
+        "captured_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "adapter": {
+          "type": "string"
+        },
+        "scope": {
+          "type": "string"
+        },
+        "site": {
+          "type": "string"
+        },
+        "author": {
+          "type": "string"
+        },
+        "published": {
+          "type": "string"
+        },
+        "coverage": {
+          "type": "object",
+          "additionalProperties": {
+            "type": ["string", "number", "boolean", "null"]
+          }
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "content_trust": {
+          "const": "untrusted"
+        }
+      },
+      "required": [
+        "type",
+        "url",
+        "title",
+        "captured_at",
+        "adapter",
+        "scope",
+        "content_trust"
+      ],
+      "additionalProperties": false
+    },
+    "content_block": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/heading"
+        },
+        {
+          "$ref": "#/$defs/paragraph"
+        },
+        {
+          "$ref": "#/$defs/list"
+        },
+        {
+          "$ref": "#/$defs/quote"
+        },
+        {
+          "$ref": "#/$defs/code"
+        },
+        {
+          "$ref": "#/$defs/table"
+        },
+        {
+          "$ref": "#/$defs/media"
+        },
+        {
+          "$ref": "#/$defs/definition"
+        },
+        {
+          "$ref": "#/$defs/control"
+        },
+        {
+          "$ref": "#/$defs/link"
+        }
+      ]
+    },
+    "content_blocks": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/content_block"
+      }
+    },
+    "heading": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "heading"
+        },
+        "level": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 6
+        },
+        "text": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": ["type", "level", "text"],
+      "additionalProperties": false
+    },
+    "paragraph": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "paragraph"
+        },
+        "text": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": ["type", "text"],
+      "additionalProperties": false
+    },
+    "item": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "item"
+        },
+        "text": {
+          "type": "string"
+        },
+        "blocks": {
+          "$ref": "#/$defs/content_blocks"
+        }
+      },
+      "required": ["type", "text"],
+      "additionalProperties": false
+    },
+    "list": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "list"
+        },
+        "ordered": {
+          "type": "boolean"
+        },
+        "start": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 999999999
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/item"
+          }
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": ["type", "ordered", "items"],
+      "additionalProperties": false
+    },
+    "quote": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "quote"
+        },
+        "blocks": {
+          "$ref": "#/$defs/content_blocks"
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": ["type", "blocks"],
+      "additionalProperties": false
+    },
+    "code": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "code"
+        },
+        "language": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": ["type", "text"],
+      "additionalProperties": false
+    },
+    "table": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "table"
+        },
+        "header": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "rows": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": ["type", "header", "rows"],
+      "additionalProperties": false
+    },
+    "media": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "media"
+        },
+        "kind": {
+          "enum": ["image", "video", "audio", "embed"]
+        },
+        "url": {
+          "type": "string"
+        },
+        "alt": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": ["type", "kind", "url"],
+      "additionalProperties": false
+    },
+    "definition": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "definition"
+        },
+        "term": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": ["type", "term", "text"],
+      "additionalProperties": false
+    },
+    "control": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "control"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": ["type", "kind"],
+      "additionalProperties": false
+    },
+    "link": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "link"
+        },
+        "url": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": ["type", "url", "text"],
+      "additionalProperties": false
+    },
+    "post": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "post"
+        },
+        "id": {
+          "type": "string"
+        },
+        "parent_id": {
+          "type": ["string", "null"]
+        },
+        "title": {
+          "type": "string"
+        },
+        "author": {
+          "type": "string"
+        },
+        "score": {
+          "type": "number"
+        },
+        "date": {
+          "type": "string"
+        },
+        "depth": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "body": {
+          "type": "string"
+        },
+        "content": {
+          "$ref": "#/$defs/content_blocks"
+        }
+      },
+      "required": ["type", "id", "parent_id", "depth"],
+      "additionalProperties": false
+    },
+    "comment": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "comment"
+        },
+        "id": {
+          "type": "string"
+        },
+        "parent_id": {
+          "type": ["string", "null"]
+        },
+        "author": {
+          "type": "string"
+        },
+        "score": {
+          "type": "number"
+        },
+        "date": {
+          "type": "string"
+        },
+        "depth": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "body": {
+          "type": "string"
+        },
+        "content": {
+          "$ref": "#/$defs/content_blocks"
+        }
+      },
+      "required": ["type", "id", "parent_id", "depth"],
+      "additionalProperties": false
+    },
+    "answer": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "answer"
+        },
+        "id": {
+          "type": "string"
+        },
+        "parent_id": {
+          "type": ["string", "null"]
+        },
+        "author": {
+          "type": "string"
+        },
+        "score": {
+          "type": "number"
+        },
+        "date": {
+          "type": "string"
+        },
+        "depth": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "accepted": {
+          "type": "boolean"
+        },
+        "body": {
+          "type": "string"
+        },
+        "content": {
+          "$ref": "#/$defs/content_blocks"
+        }
+      },
+      "required": ["type", "id", "parent_id", "depth"],
+      "additionalProperties": false
+    }
+  }
+}
