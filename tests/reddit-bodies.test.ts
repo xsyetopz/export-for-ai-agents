@@ -276,14 +276,135 @@ test("normalizeBody leaves <...> link targets and escapes after even backslashes
   expect(normalizeBody("``a` <x>")).toBe("``a` \\<x>");
 });
 
+test("normalizeBody: escaped backtick runs", () => {
+  expect(normalizeBody("\\``<b>` x")).toBe("\\``<b>` x");
+  expect(normalizeBody("\\`<b>`")).toBe("\\`\\<b>`");
+});
+
+test("normalizeBody: escaped backtick runs still close spans", () => {
+  for (const t of [
+    "``<b>\\``",
+    "``<b>\\`` x",
+    "\\\\``<b>``",
+    "\\```<b>``",
+    "x \\``",
+  ])
+    expect(normalizeBody(t)).toBe(t);
+});
+
+test("normalizeBody: only HTML-like lines block a hard break", () => {
+  expect(normalizeBody("a  \n<3 you")).toBe("a\\\n<3 you");
+  expect(normalizeBody("a  \n<div>").startsWith("a\n")).toBe(true);
+});
+
+test("normalizeBody: link destinations with leading whitespace", () => {
+  expect(normalizeBody("[a](  <b c>)")).toBe("[a](  <b c>)");
+  expect(normalizeBody("[a](\t<b c>)")).toBe("[a](\t<b c>)");
+  expect(normalizeBody("use <name> here")).toBe("use \\<name> here");
+});
+
+test("normalizeBody: code spans cross lines within a paragraph", () => {
+  expect(normalizeBody("a `<b\nc>` d")).toBe("a `<b\nc>` d");
+  expect(normalizeBody("a `x  \ny` z")).toBe("a `x\ny` z");
+  expect(normalizeBody("a `x\n\n<b>` y")).toBe("a `x\n\n\\<b>` y");
+  expect(normalizeBody("a `x\n- <b>` y")).toBe("a `x\n- \\<b>` y");
+  expect(normalizeBody("a  \nb")).toBe("a\\\nb");
+});
+
+test("normalizeBody: paragraph interruption follows CommonMark", () => {
+  expect(normalizeBody("`\n<a`")).toBe("`\n<a`");
+  expect(normalizeBody("`x\n<b>y`")).toBe("`x\n<b>y`");
+  expect(normalizeBody("a `x\n<div>` y")).toBe(
+    "a `x\n<div>` y".replace("<div>", "\\<div>"),
+  );
+  expect(normalizeBody("`x\n2. <b>`")).toBe("`x\n2. <b>`");
+  expect(normalizeBody("> a `x\n> <b>` y")).toBe("> a `x\n> <b>` y");
+  expect(normalizeBody("a `x\n> <b>` y")).toBe("a `x\n> \\<b>` y");
+  expect(normalizeBody("`x\n>\n<b>`")).toBe("`x\n>\n\\<b>`");
+  expect(normalizeBody("# h `x\n<b>`")).toBe("# h `x\n\\<b>`");
+  expect(normalizeBody("[a](  \nb)")).toBe("[a](\nb)");
+  expect(normalizeBody("[x]:  \n<y>")).toBe("[x]:\n<y>");
+});
+
+test("normalizeBody: link destination across one line break", () => {
+  expect(normalizeBody("[a](\n<b c>)")).toBe("[a](\n<b c>)");
+  expect(normalizeBody("[a](  \n<b c>)")).toBe("[a](\n<b c>)");
+  expect(normalizeBody("[a](\n\n<b c>)")).toBe("[a](\n\n\\<b c>)");
+});
+
+test("normalizeBody: reference definition destinations", () => {
+  expect(normalizeBody("[x]: <y>")).toBe("[x]: <y>");
+  expect(normalizeBody("[x]:\n<y>")).toBe("[x]:\n<y>");
+  expect(normalizeBody("> [x]: <y>")).toBe("> [x]: <y>");
+  expect(normalizeBody("[x]: <y>\n[z]: <w>")).toBe("[x]: <y>\n[z]: <w>");
+  expect(normalizeBody("foo\n[x]: <y>")).toBe("foo\n[x]: \\<y>");
+});
+
 test("normalizeBody stays linear on long backslash and space runs", () => {
   for (const text of [
     `${"\\".repeat(40000)}x`,
     `${" ".repeat(40000)}x`,
     `${"\u00A0".repeat(40000)}x `,
+    " <a".repeat(13000),
+    "[x]:\n".repeat(13000),
+    "a `b` ``c <d` e\n".repeat(2500),
   ]) {
     const t = performance.now();
     normalizeBody(text);
     expect(performance.now() - t).toBeLessThan(100);
   }
+});
+
+test("normalizeBody: bare [label]: line keeps its hard break unless it is a definition", () => {
+  expect(normalizeBody("foo\n[x]:  \nbar")).toBe("foo\n[x]:\\\nbar");
+  expect(normalizeBody("[x]:  \nbar")).toBe("[x]:\nbar");
+  expect(normalizeBody("[x]: <y>\n[z]:  \nbar")).toBe("[x]: <y>\n[z]:\nbar");
+  expect(normalizeBody("foo\n[x]:  \n<y>")).toBe("foo\n[x]:\\\n\\<y>");
+  expect(normalizeBody("foo\n[a](  \nb)")).toBe("foo\n[a](\nb)");
+});
+
+test("normalizeBody: only HTML block starts (types 1-6) block a hard break", () => {
+  expect(normalizeBody("a  \n<notatag and text")).toBe(
+    "a\\\n\\<notatag and text",
+  );
+  expect(normalizeBody("a  \n<span>b</span>")).toBe("a\\\n\\<span>b</span>");
+  expect(normalizeBody("a  \n<b>")).toBe("a\\\n\\<b>");
+  expect(normalizeBody("a  \n<divx>")).toBe("a\\\n\\<divx>");
+  expect(normalizeBody("a  \n<div>")).toBe("a\n\\<div>");
+  expect(normalizeBody("a  \n<DIV>")).toBe("a\n\\<DIV>");
+  expect(normalizeBody("a  \n</div>")).toBe("a\n</div>");
+  expect(normalizeBody("a  \n<pre>")).toBe("a\n\\<pre>");
+  expect(normalizeBody("a  \n<!-- c -->")).toBe("a\n<!-- c -->");
+  expect(normalizeBody("a  \n<?php")).toBe("a\n<?php");
+  expect(normalizeBody("a  \n<![CDATA[x]]>")).toBe("a\n<![CDATA[x]]>");
+  expect(normalizeBody("a  \n<!DOCTYPE html>")).toBe("a\n<!DOCTYPE html>");
+});
+
+test("normalizeBody: HTML block starts and ordered items end a paragraph", () => {
+  // Interrupting lines start a new group, so the span cannot cross them.
+  expect(normalizeBody("`x\n<DIV>`")).toBe("`x\n\\<DIV>`");
+  expect(normalizeBody("`x\n<![CDATA[`")).toBe("`x\n<![CDATA[`");
+  expect(normalizeBody("`x\n<!DOCTYPE`")).toBe("`x\n<!DOCTYPE`");
+  expect(normalizeBody("`x\n1. <b>`")).toBe("`x\n1. \\<b>`");
+  // Not interrupting: the span crosses the line.
+  expect(normalizeBody("`x\n01) <b>`")).toBe("`x\n01) <b>`");
+  expect(normalizeBody("`x\n2. <b>`")).toBe("`x\n2. <b>`");
+  expect(normalizeBody("`x\n<notatag`")).toBe("`x\n<notatag`");
+});
+
+test("normalizeBody: CDATA opener is case-sensitive", () => {
+  expect(normalizeBody("foo  \n<![cdata[x]]>")).toBe("foo\\\n<![cdata[x]]>");
+  expect(normalizeBody("foo  \n<![CDATA[x]]>")).toBe("foo\n<![CDATA[x]]>");
+});
+
+test("normalizeBody: empty list items do not interrupt a paragraph", () => {
+  expect(normalizeBody("foo  \n*  ")).toBe("foo\\\n*");
+  expect(normalizeBody("foo  \n+")).toBe("foo\\\n+");
+  expect(normalizeBody("foo  \n1.  ")).toBe("foo\\\n1.");
+  expect(normalizeBody("foo  \n1.")).toBe("foo\\\n1.");
+  expect(normalizeBody("foo  \n*  \nbar")).toBe("foo\\\n*\\\nbar");
+  expect(normalizeBody("foo  \n*  a")).toBe("foo\n*  a");
+  expect(normalizeBody("foo  \n-")).toBe("foo\n-");
+  expect(normalizeBody("foo  \n- ")).toBe("foo\n-");
+  expect(normalizeBody("`x\n*\n<b>`")).toBe("`x\n*\n<b>`");
 });
