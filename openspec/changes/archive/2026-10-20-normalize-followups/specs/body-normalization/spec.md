@@ -90,13 +90,10 @@ columns inside a list item SHALL keep being treated as code.
 
 ### Requirement: Only HTML block starts block a hard break
 
-The normalizer SHALL skip the `\` hard break only before a line that can interrupt a paragraph: a line that
-starts (after up to three spaces) with a CommonMark HTML block opener of types 1-6 (matched case-insensitively),
-a non-empty bullet item, an ordered item that starts at 1, a heading, a thematic break, a fence, a quote or a
-setext underline. Any other line, including a lone complete tag (type 7) and an ordered item that starts at a
-number other than 1, SHALL get the hard break, since it continues the paragraph. The exception is a paragraph
-inside a list item: there, an ordered item before the next line is a sibling item, so the break is skipped
-before any ordered item.
+The normalizer SHALL skip the `\` hard break only before a line that can interrupt a paragraph (after up to
+three spaces): an HTML block opener of types 1-6 (case-insensitive), a non-empty bullet item, an ordered item
+starting at 1, a heading, a thematic break, a fence, a quote or a setext underline. Other lines, including a lone
+type 7 tag, SHALL get the break. Inside a list item, the break SHALL also be skipped before any ordered item.
 
 #### Scenario: Heart emoticon keeps the hard break
 
