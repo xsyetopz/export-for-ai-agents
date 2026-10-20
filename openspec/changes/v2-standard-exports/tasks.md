@@ -14,3 +14,4 @@
 - [x] 2.1 Popup palette: replace ultramarine with a neutral graphite palette (no purple/blue); update DESIGN.md tokens and prose
 - [x] 2.2 Reddit export cleanup: post title duplicated and glued to the meta line in Markdown; bare image URL duplicated next to its image; whitespace-only lines and trailing spaces in bodies; Markdown front matter missing `scope`/`site`
 - [x] 2.3 Review fixes: Reddit `partial` no longer set by `num_comments` exceeding captured alone (only known-missing content); FORMAT.md media wording matches the Reddit `![alt](url)` image references
+- [x] 2.4 Normalize low findings: strip trailing NBSP/zero-width space; resolve relative Reddit links to https://www.reddit.com; escape `<` before a letter outside code; no `\` hard break before a fence, heading or quote

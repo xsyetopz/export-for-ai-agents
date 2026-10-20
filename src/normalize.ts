@@ -67,12 +67,113 @@ export function unclosedFence(text: string): string | null {
   return scanCode(text.replace(/\r\n?/g, "\n").split("\n")).unclosed;
 }
 
+const BLOCK_START =
+  /^ {0,3}(?:`{3,}|~{3,}|#{1,6}(?:[ \t]|$)|>|[-+*][ \t]|\d{1,9}[.)][ \t]|(?:[-*_][ \t]*){3,}$|=+[ \t]*$|<)/;
+
+/** Zero-width and no-break characters that count as trailing whitespace. */
+function isTrailing(c: number): boolean {
+  return (
+    c === 0x20 ||
+    c === 0x09 ||
+    c === 0xa0 ||
+    c === 0x200b ||
+    c === 0x200c ||
+    c === 0x200d ||
+    c === 0xfeff
+  );
+}
+
+/** Index after the last non-trailing character (linear, no regex backtracking). */
+function trimmedEnd(s: string): number {
+  let end = s.length;
+  while (end > 0 && isTrailing(s.charCodeAt(end - 1))) end--;
+  return end;
+}
+
+/** True when the line has two or more trailing spaces or NBSPs (a Markdown hard break). */
+function hasBreakTail(s: string, end: number): boolean {
+  let n = 0;
+  for (let i = end; i < s.length; i++) {
+    const c = s.charCodeAt(i);
+    if (c === 0x20 || c === 0xa0) n++;
+  }
+  return n >= 2;
+}
+
+/** Inline code span ranges `[start, end)`; linear. An escaped opener does not start a span. */
+function codeSpans(line: string): [number, number][] {
+  const runs: { pos: number; len: number; open: boolean }[] = [];
+  for (const m of line.matchAll(/`+/g)) {
+    let bs = 0;
+    for (let k = m.index - 1; k >= 0 && line[k] === "\\"; k--) bs++;
+    runs.push({ pos: m.index, len: m[0].length, open: bs % 2 === 0 });
+  }
+  const next: number[] = new Array(runs.length).fill(-1);
+  const seen = new Map<number, number>();
+  for (let i = runs.length - 1; i >= 0; i--) {
+    const r = runs[i];
+    if (!r) continue;
+    next[i] = seen.get(r.len) ?? -1;
+    seen.set(r.len, i);
+  }
+  const spans: [number, number][] = [];
+  for (let i = 0; i < runs.length; i++) {
+    const r = runs[i];
+    const j = next[i] ?? -1;
+    const c = j >= 0 ? runs[j] : undefined;
+    if (r?.open && c) {
+      spans.push([r.pos, c.pos + c.len]);
+      i = j;
+    }
+  }
+  return spans;
+}
+
+export interface NormalizeOptions {
+  /** Origin (no trailing slash) used to resolve `](/path)` link and image targets; unset leaves them. */
+  baseUrl?: string;
+}
+
+function fixProse(segment: string, baseUrl: string | undefined): string {
+  let out = segment.replace(
+    /(?<!\\)(\\*)<(?=[A-Za-z])/g,
+    (m, slashes: string, off: number, whole: string) => {
+      if (slashes.length % 2 === 1) return m;
+      if (whole.slice(Math.max(0, off - 2), off) === "](") return m;
+      if (/^[A-Za-z][A-Za-z0-9+.-]{1,31}:/.test(whole.slice(off + m.length)))
+        return m;
+      return `${slashes}\\<`;
+    },
+  );
+  if (baseUrl !== undefined)
+    out = out.replace(
+      /\]\((\s*<?)\/(?!\/)/g,
+      (_m, pre: string) => `](${pre}${baseUrl}/`,
+    );
+  return out;
+}
+
+/** Escape bare `<letter` and resolve relative link targets outside inline code spans. */
+function fixInline(line: string, baseUrl: string | undefined): string {
+  let out = "";
+  let last = 0;
+  for (const [start, end] of codeSpans(line)) {
+    out += fixProse(line.slice(last, start), baseUrl);
+    out += line.slice(start, end);
+    last = end;
+  }
+  return out + fixProse(line.slice(last), baseUrl);
+}
+
 /**
  * Strip trailing whitespace per line (two or more spaces before a non-blank line become a `\`
  * hard break), blank out whitespace-only lines, collapse 3+ newlines to 2, drop leading blank
  * lines and trailing whitespace. Code (see `scanCode`) is left untouched.
  */
-export function normalizeBody(text: string): string {
+export function normalizeBody(
+  text: string,
+  options: NormalizeOptions = {},
+): string {
   const lines = text.replace(/\r\n?/g, "\n").split("\n");
   const { mask } = scanCode(lines);
   const out: string[] = [];
@@ -84,7 +185,8 @@ export function normalizeBody(text: string): string {
       blanks = 0;
       continue;
     }
-    let line = raw.replace(/[ \t]+$/, "");
+    const end = trimmedEnd(raw);
+    let line = raw.slice(0, end);
     if (line === "") {
       blanks++;
       if (blanks <= 1) out.push("");
@@ -92,12 +194,13 @@ export function normalizeBody(text: string): string {
     }
     blanks = 0;
     if (
-      / {2,}$/.test(raw) &&
+      hasBreakTail(raw, end) &&
       !line.endsWith("\\") &&
-      (lines[i + 1] ?? "").trim() !== ""
+      trimmedEnd(lines[i + 1] ?? "") > 0 &&
+      !BLOCK_START.test(lines[i + 1] ?? "")
     )
       line += "\\";
-    out.push(line);
+    out.push(fixInline(line, options.baseUrl));
   }
   return out.join("\n").replace(/^\n+/, "").trimEnd();
 }

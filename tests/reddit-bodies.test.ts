@@ -214,3 +214,76 @@ test("unclosedFence reports the open fence", () => {
   expect(unclosedFence("```js\nx")).toBe("```");
   expect(unclosedFence("~~~~\nx\n~~~~")).toBeNull();
 });
+
+test("normalizeBody strips trailing NBSP and zero-width chars only at line ends", () => {
+  expect(normalizeBody("a\u00A0\u200B\uFEFF\nb")).toBe("a\nb");
+  expect(normalizeBody("a\n\u00A0\u200B\u200C\u200D\uFEFF\n\n\nb")).toBe(
+    "a\n\nb",
+  );
+  expect(normalizeBody("a\u200Bb\u00A0c")).toBe("a\u200Bb\u00A0c");
+  expect(normalizeBody("```\na\u00A0\n```")).toBe("```\na\u00A0\n```");
+});
+
+test("normalizeBody resolves relative links when given a base URL", () => {
+  const o = { baseUrl: "https://www.reddit.com" };
+  expect(
+    normalizeBody("[m](/message/compose/?to=x) [r](/r/foo) ![i](/u/bar)", o),
+  ).toBe(
+    "[m](https://www.reddit.com/message/compose/?to=x) [r](https://www.reddit.com/r/foo) ![i](https://www.reddit.com/u/bar)",
+  );
+  expect(normalizeBody("[a](//x.com) [b](https://y.com) [c](rel)", o)).toBe(
+    "[a](//x.com) [b](https://y.com) [c](rel)",
+  );
+  expect(normalizeBody("`[a](/r/foo)`\n```\n[a](/r/foo)\n```", o)).toBe(
+    "`[a](/r/foo)`\n```\n[a](/r/foo)\n```",
+  );
+  expect(normalizeBody("[a](/r/foo)")).toBe("[a](/r/foo)");
+});
+
+test("normalizeBody escapes bare < before a letter outside code", () => {
+  expect(normalizeBody("use <name> in <repo>")).toBe(
+    "use \\<name> in \\<repo>",
+  );
+  expect(normalizeBody("already \\<name> and 1 < 2")).toBe(
+    "already \\<name> and 1 < 2",
+  );
+  expect(normalizeBody("see <https://a.com> <mailto:a@b.c> <http://x>")).toBe(
+    "see <https://a.com> <mailto:a@b.c> <http://x>",
+  );
+  expect(normalizeBody("`<name>` <x>\n```\n<name>\n```\n    <name>")).toBe(
+    "`<name>` \\<x>\n```\n<name>\n```\n    <name>",
+  );
+});
+
+test("normalizeBody skips the hard break before a fence, heading or quote", () => {
+  expect(normalizeBody("a  \n```\nx\n```")).toBe("a\n```\nx\n```");
+  expect(normalizeBody("a  \n~~~\nx\n~~~")).toBe("a\n~~~\nx\n~~~");
+  expect(normalizeBody("a  \n# h")).toBe("a\n# h");
+  expect(normalizeBody("a  \n> q")).toBe("a\n> q");
+  expect(normalizeBody("a  \n- item")).toBe("a\n- item");
+  expect(normalizeBody("a  \n1. item")).toBe("a\n1. item");
+  expect(normalizeBody("a  \n---")).toBe("a\n---");
+  expect(normalizeBody("a  \n#hashtag")).toBe("a\\\n#hashtag");
+  expect(normalizeBody("a  \n\u200B\nb")).toBe("a\n\nb");
+  expect(normalizeBody("x \u00A0\nb")).toBe("x\\\nb");
+  expect(normalizeBody("a  \nb")).toBe("a\\\nb");
+});
+
+test("normalizeBody leaves <...> link targets and escapes after even backslashes", () => {
+  expect(normalizeBody("[x](<foo bar>)")).toBe("[x](<foo bar>)");
+  expect(normalizeBody("\\\\<x>")).toBe("\\\\\\<x>");
+  expect(normalizeBody("\\`<x>`")).toBe("\\`\\<x>`");
+  expect(normalizeBody("``a` <x>")).toBe("``a` \\<x>");
+});
+
+test("normalizeBody stays linear on long backslash and space runs", () => {
+  for (const text of [
+    `${"\\".repeat(40000)}x`,
+    `${" ".repeat(40000)}x`,
+    `${"\u00A0".repeat(40000)}x `,
+  ]) {
+    const t = performance.now();
+    normalizeBody(text);
+    expect(performance.now() - t).toBeLessThan(100);
+  }
+});

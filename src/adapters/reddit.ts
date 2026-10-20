@@ -29,6 +29,7 @@ const SORTS: ReadonlySet<string> = new Set([
   "qa",
 ]);
 
+const NORMALIZE = { baseUrl: "https://www.reddit.com" };
 const FETCH_TIMEOUT_MS = 15_000;
 const MORE_BATCH = 100;
 const DEFAULT_MORE_REQUESTS = 5;
@@ -607,11 +608,13 @@ function dropImageUrlLines(text: string, media: RMedia[]): string {
 }
 
 function bodyWith(text: string, media: RMedia[]): string | undefined {
-  let body = normalizeBody(dropImageUrlLines(text, media));
+  let body = normalizeBody(dropImageUrlLines(text, media), NORMALIZE);
   const closing = unclosedFence(body);
   if (closing !== null && media.length) body += `\n${closing}`;
   const parts = [body, mediaMarkdown(media)].filter(Boolean);
-  return parts.length ? normalizeBody(parts.join("\n\n")) : undefined;
+  return parts.length
+    ? normalizeBody(parts.join("\n\n"), NORMALIZE)
+    : undefined;
 }
 
 function buildBlocks(
