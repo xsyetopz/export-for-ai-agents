@@ -877,7 +877,6 @@ export function createRedditAdapter(deps: RedditDeps = {}): Adapter {
       state.unresolved > 0 ||
       state.missing.size > 0 ||
       state.capped ||
-      (reported !== undefined && reported > captured) ||
       warnings.length > 0;
     if (reported !== undefined && reported > captured)
       warnings.unshift(

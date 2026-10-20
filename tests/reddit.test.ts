@@ -155,6 +155,27 @@ test("coverage reports partial when morechildren is disabled", async () => {
   expect(doc.meta.warnings?.join("\n")).toContain("Captured 5 of 7");
 });
 
+test("a num_comments gap alone (removed comments) does not mark the capture partial", async () => {
+  const gap = structuredClone(thread) as Array<{
+    data: { children: Array<{ data: { num_comments?: number } }> };
+  }>;
+  const post = gap[0]?.data.children[0];
+  if (post) post.data.num_comments = 10;
+  const m = mockFetch((url) =>
+    url.pathname.startsWith("/api/morechildren") ? ok(more) : ok(gap),
+  );
+  const { adapter } = adapterWith(m);
+  const doc = await adapter.capture(ctx());
+  expect(doc.meta.coverage).toMatchObject({
+    comments_reported: 10,
+    comments_captured: 7,
+    pending_comment_ids: 0,
+    unresolved_more_nodes: 0,
+    partial: false,
+  });
+  expect(doc.meta.warnings?.join("\n")).toContain("Captured 7 of 10");
+});
+
 test("morechildren expands pending ids and nests them by parent", async () => {
   const m = mockFetch(routes);
   const { adapter } = adapterWith(m);

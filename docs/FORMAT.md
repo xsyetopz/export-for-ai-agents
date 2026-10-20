@@ -71,8 +71,8 @@ Code fences use backticks. The fence is as long as needed to never collide with 
 longest backtick run inside, and at least three. The info string keeps only `A-Z a-z 0-9 _ + # . -` from the language.
 [article.md](../examples/article.md) shows a four-backtick fence around a line that contains three.
 
-Media is always a link, never an embedded image: `[Image: alt](url)`, `[Video: title](url)`, or just `[Image](url)` (any kind) when
-there is no alt or title. A URL with a disallowed scheme gives the plain label, not a link. The kinds are Image, Video, Audio, and Embed.
+Media is only ever referenced by URL; it is never inlined, base64-encoded, or downloaded. Most adapters write a link: `[Image: alt](url)`, `[Video: title](url)`, or just `[Image](url)` (any kind) when
+there is no alt or title. The Reddit adapter writes a Markdown image reference, `![alt](url)`, for images and a plain link for other kinds. A URL with a disallowed scheme gives the plain label, not a link. The kinds are Image, Video, Audio, and Embed.
 
 ### Escaping
 
@@ -147,6 +147,8 @@ site) or as `content` (an array of content blocks). Missing optional fields mean
 zero. The thread tree is in `id`, `parent_id`, and `depth`, so a reader does not have to infer it from line order.
 
 The `coverage` map in the header, like the front matter's, holds string, number, boolean, or null values.
+
+On Reddit, `partial` is true only when content known to exist was left behind: unexpanded "more" stubs or "continue this thread" links, comment ids not loaded or unavailable, a hit size limit, or an expansion that stopped early. `comments_reported` (Reddit's `num_comments`) versus `comments_captured` is informational: the gap is usually removed or deleted comments the API never returns, so it does not set `partial` and only adds a warning.
 
 ## Filenames and MIME types
 
