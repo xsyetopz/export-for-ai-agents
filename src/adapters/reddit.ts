@@ -6,6 +6,7 @@
  */
 
 import type { Coverage, ExportDocument, Meta, ThreadBlock } from "../model.ts";
+import { normalizeBody, scanCode, unclosedFence } from "../normalize.ts";
 import { redditTarget } from "../reddit-url.ts";
 import {
   type Adapter,
@@ -581,9 +582,36 @@ function mediaMarkdown(media: RMedia[]): string {
     .join("\n");
 }
 
+/** Drops lines that only repeat an image's URL (bare or as `[url](url)`): the image already carries it. */
+function dropImageUrlLines(text: string, media: RMedia[]): string {
+  const urls = new Set(
+    media.filter((m) => m.kind === "image").map((m) => m.url),
+  );
+  if (!urls.size) return text;
+  const same = (u: string) => {
+    const plain = u.replace(/&amp;/g, "&");
+    return urls.has(plain) || urls.has(mdUrl(plain));
+  };
+  const lines = text.split("\n");
+  const { mask } = scanCode(lines);
+  return lines
+    .filter((line, i) => {
+      if (mask[i]) return true;
+      const t = line.trim();
+      const bare = /^<?(https?:\/\/[^\s<>]+)>?$/.exec(t)?.[1];
+      if (bare !== undefined) return !same(bare);
+      const linked = /^\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)$/.exec(t);
+      return !(linked?.[1] && linked[2] && same(linked[1]) && same(linked[2]));
+    })
+    .join("\n");
+}
+
 function bodyWith(text: string, media: RMedia[]): string | undefined {
-  const parts = [text.trim(), mediaMarkdown(media)].filter(Boolean);
-  return parts.length ? parts.join("\n\n") : undefined;
+  let body = normalizeBody(dropImageUrlLines(text, media));
+  const closing = unclosedFence(body);
+  if (closing !== null && media.length) body += `\n${closing}`;
+  const parts = [body, mediaMarkdown(media)].filter(Boolean);
+  return parts.length ? normalizeBody(parts.join("\n\n")) : undefined;
 }
 
 function buildBlocks(

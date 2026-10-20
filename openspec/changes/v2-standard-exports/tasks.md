@@ -8,3 +8,8 @@
 - [x] 1.6 Popup + Advanced UI (D9); tests
 - [x] 1.7 Docs: README, docs/FORMAT.md, CLAUDE.md/AGENTS.md, examples; remove v1 files; verify; review
   - v1 removal done early: `extension/`, `tests/*.mjs`, `tests/fixtures/reddit.mjs`, `examples/reddit.jsonl` are deleted; schema is `schemas/page-export.schema.json`, fixtures in `tests/fixtures/`. Remaining: docs, examples, review.
+
+## 2. Fixes from manual Chrome testing
+
+- [x] 2.1 Popup palette: replace ultramarine with a neutral graphite palette (no purple/blue); update DESIGN.md tokens and prose
+- [x] 2.2 Reddit export cleanup: post title duplicated and glued to the meta line in Markdown; bare image URL duplicated next to its image; whitespace-only lines and trailing spaces in bodies; Markdown front matter missing `scope`/`site`

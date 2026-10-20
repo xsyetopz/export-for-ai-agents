@@ -35,12 +35,14 @@ and optional keys are left out when empty:
 | `canonical` | When the page declares one. |
 | `captured_at` | Always. RFC 3339, UTC. |
 | `adapter` | Always. Name of the site adapter used (for example `generic`, `reddit`). |
+| `scope` | Always. `page`, `selection`, or `thread`. |
+| `site` | When the adapter names one. |
 | `language` | When known (BCP 47). |
 | `coverage` | When non-empty. A map of quoted keys to string, number, boolean, or null values. |
 | `warnings` | When non-empty. A list of strings. |
 | `content_trust` | Always `"untrusted"`. |
 
-`description`, `scope`, `site`, `author`, and `published` are not in the front matter. `description` is the `>` line;
+`description`, `author`, and `published` are not in the front matter. `description` is the `>` line;
 the others appear only in the JSONL header.
 
 ### Title appears twice, on purpose
@@ -98,9 +100,11 @@ parts left out:
 
 The author is bold, the score is a plain number, the date is escaped text, and the `id` is a code span. After that line:
 
-- A post with a `title` gets a second line, `**title**`.
 - An accepted answer gets `*Accepted answer*`.
 - A reply deeper than 6 with a `parent_id` gets ``reply to `<parent_id>` ``.
+
+The meta lines are always followed by a blank line before any body. A post whose `title` differs from the document
+title gets `**title**` as its own paragraph after the meta lines; a post with the same title omits it.
 
 A blank line follows, then the body. A reply is nested by wrapping its whole block in blockquote levels, one per `depth`,
 capped at 6. Depth 0 is not quoted. Replies deeper than 6 stay at 6 levels and say which comment they answer with the

@@ -4,6 +4,8 @@ url: "https://example.com/post?a=1"
 canonical: "https://example.com/post"
 captured_at: "2026-09-23T00:00:00Z"
 adapter: "generic"
+scope: "page"
+site: "Example"
 language: "en"
 coverage:
   "blocks": 9

@@ -224,35 +224,39 @@ function closeNative(body: string): string {
   return out;
 }
 
-function renderThread(block: ThreadBlock): string {
+function renderThread(block: ThreadBlock, docTitle: string): string {
   const head: string[] = [];
   if (block.author) head.push(`**${escapeMarkdown(oneLine(block.author))}**`);
   if (block.score !== undefined) head.push(String(block.score));
   if (block.date) head.push(escapeMarkdown(oneLine(block.date)));
   if (block.id.trim()) head.push(codeSpan(block.id));
   const lines = [head.join(" · ")];
-  if (block.type === "post" && block.title)
-    lines.push(`**${escapeMarkdown(oneLine(block.title))}**`);
   if (block.type === "answer" && block.accepted)
     lines.push("*Accepted answer*");
   if (block.depth > MAX_QUOTE_DEPTH && block.parent_id) {
     lines.push(`reply to ${codeSpan(block.parent_id)}`);
   }
   let out = lines.join("\n");
+  if (
+    block.type === "post" &&
+    block.title &&
+    oneLine(block.title) !== oneLine(docTitle)
+  )
+    out += `\n\n**${escapeMarkdown(oneLine(block.title))}**`;
   const body = block.body?.trim()
-    ? closeNative(normalizeNewlines(block.body).trim())
+    ? closeNative(normalizeNewlines(block.body).replace(/^\n+/, "").trimEnd())
     : renderContentBlocks(block.content ?? []);
   if (body) out += `\n\n${body}`;
   const levels = Math.min(Math.max(block.depth, 0), MAX_QUOTE_DEPTH);
   return levels ? prefixLines(out, "> ".repeat(levels)) : out;
 }
 
-function renderBlock(block: Block): string {
+function renderBlock(block: Block, docTitle: string): string {
   switch (block.type) {
     case "post":
     case "comment":
     case "answer":
-      return renderThread(block);
+      return renderThread(block, docTitle);
     default:
       return renderContent(block);
   }
@@ -269,7 +273,9 @@ function frontMatter(doc: ExportDocument): string {
   lines.push(
     `captured_at: ${yamlScalar(m.captured_at)}`,
     `adapter: ${yamlScalar(m.adapter)}`,
+    `scope: ${yamlScalar(m.scope)}`,
   );
+  if (m.site) lines.push(`site: ${yamlScalar(m.site)}`);
   if (m.language) lines.push(`language: ${yamlScalar(m.language)}`);
   if (m.coverage) {
     const entries = Object.entries(m.coverage);
@@ -293,7 +299,7 @@ export function toMarkdown(doc: ExportDocument): string {
     parts.push(prefixLines(escapeMarkdown(doc.meta.description.trim()), "> "));
   }
   for (const block of doc.blocks) {
-    const rendered = renderBlock(block);
+    const rendered = renderBlock(block, doc.meta.title);
     if (rendered) parts.push(rendered);
   }
   return `${parts.join("\n\n")}\n`;
