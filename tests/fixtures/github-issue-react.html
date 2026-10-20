@@ -1,18 +1,22 @@
-<!-- Hand-written approximation of GitHub's React issue view; not captured from a live page. -->
+<!-- Trimmed and synthetic; structure follows GitHub's React issue view as served to logged-out clients (2026-10). -->
 <div data-testid="issue-viewer">
 <h1 data-testid="issue-title"><bdi>Dark mode flickers</bdi> <span>#77</span></h1>
 <span data-testid="header-state">Closed</span>
-<div data-testid="issue-body" id="issue-5001">
-<div data-testid="issue-body-header"><a data-testid="issue-body-header-author" href="/octo">octo</a> <relative-time datetime="2026-10-05T08:00:00Z">Oct 5</relative-time></div>
-<div data-testid="markdown-body" class="markdown-body"><p>It flickers on load.</p><img src="https://example.org/a.png" alt="shot"></div>
+<div data-testid="issue-body" class="react-issue-body">
+<div data-testid="issue-body-header"><a data-testid="issue-body-header-author" href="https://github.com/octo">octo</a> <span>opened </span><a data-testid="issue-body-header-link" href="https://github.com/o/r/issues/77#issue-5001"><relative-time data-component="RelativeTime">on Oct 5, 2026</relative-time></a></div>
+<div id="issue-body-viewer" data-testid="issue-body-viewer"><div data-testid="markdown-body" class="markdown-body"><p>It flickers on load.</p><img src="https://example.org/a.png" alt="shot"></div></div>
 </div>
-<div class="react-issue-comment" id="issuecomment-5002">
-<div data-testid="comment-header"><a href="/maint">maint</a> <relative-time datetime="2026-10-06T08:00:00Z">Oct 6</relative-time></div>
+<div class="react-issue-comment">
+<div id="issuecomment-5002" data-testid="comment-header"><h3 class="sr-only">maint commented <relative-time data-component="RelativeTime">on<!-- --> Oct 9, 2026 </relative-time></h3><a href="/maint" data-testid="avatar-link">maint<!-- --> (<!-- -->maint<!-- -->)</a> <a href="https://github.com/o/r/issues/77#issuecomment-5002"><relative-time data-component="RelativeTime">on Oct 6, 2026</relative-time></a></div>
 <div data-testid="markdown-body" class="markdown-body"><p>Fixed in main.</p><img src="https://example.org/a.png" alt="shot"></div>
 </div>
 <div class="react-issue-comment">
-<div data-testid="comment-header"><a href="/octo">octo</a> <relative-time datetime="2026-10-07T08:00:00Z">Oct 7</relative-time></div>
+<div id="issuecomment-5003" data-testid="comment-header"><a href="/octo" data-testid="avatar-link">Octo Cat (octo)</a> <a href="https://github.com/o/r/issues/77#issuecomment-5003"><relative-time data-component="RelativeTime" datetime="2026-10-07T08:00:00Z">on Oct 7, 2026</relative-time></a></div>
 <div data-testid="markdown-body" class="markdown-body"><p>Confirmed, thanks.</p></div>
+</div>
+<div class="react-issue-comment">
+<div id="issuecomment-5004" data-testid="comment-header"><a href="/octo" data-testid="avatar-link">octo</a> <a href="https://github.com/o/r/issues/77#issuecomment-5004"><relative-time data-component="RelativeTime">yesterday</relative-time></a></div>
+<div data-testid="markdown-body" class="markdown-body"><p>Relative text only.</p></div>
 </div>
 <button data-testid="issue-timeline-load-more">Load more</button>
 </div>

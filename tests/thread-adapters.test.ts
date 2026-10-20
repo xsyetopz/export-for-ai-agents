@@ -367,7 +367,7 @@ test("generic converter warnings and per-body media reach the meta", async () =>
   expect(images).toHaveLength(2);
 });
 
-test("github react view is captured, with unique ids and a load-more warning", async () => {
+test("github react view: logins, text dates, clean ids and a load-more warning", async () => {
   const doc = await run(
     githubAdapter,
     "https://github.com/o/r/issues/77",
@@ -376,21 +376,141 @@ test("github react view is captured, with unique ids and a load-more warning", a
   expect(doc.meta).toMatchObject({
     title: "Dark mode flickers",
     author: "octo",
-    published: "2026-10-05T08:00:00Z",
+    published: "2026-10-05T00:00:00Z",
   });
   expect(doc.meta.coverage).toMatchObject({
     layout: "react",
     state: "Closed",
-    comments_captured: 2,
+    comments_captured: 3,
     partial: true,
   });
   expect(doc.meta.warnings?.join(" ")).toContain("load-more");
   const ids = doc.blocks.map((b) => ("id" in b ? b.id : ""));
-  expect(new Set(ids).size).toBe(ids.length);
+  expect(ids).toEqual([
+    "issue-5001",
+    "issuecomment-5002",
+    "issuecomment-5003",
+    "issuecomment-5004",
+  ]);
   expect(doc.blocks[1]).toMatchObject({
-    id: "issuecomment-5002",
     author: "maint",
+    date: "2026-10-06T00:00:00Z",
+    parent_id: "issue-5001",
   });
+  // The datetime attribute wins over the text; the login wins over the display name.
+  expect(doc.blocks[2]).toMatchObject({
+    author: "octo",
+    date: "2026-10-07T08:00:00Z",
+  });
+  expect(find(doc, "issuecomment-5004")).not.toHaveProperty("date");
+});
+
+test("github pull request: header title and state, ids, review date and hidden items", async () => {
+  const doc = await run(
+    githubAdapter,
+    "https://github.com/o/r/pull/28000",
+    await fixture("github-pr.html"),
+  );
+  expect(doc.meta).toMatchObject({
+    title: "Convert renderer to createRoot",
+    author: "eps1lon",
+    published: "2024-01-19T11:29:48Z",
+  });
+  expect(doc.meta.coverage).toMatchObject({
+    layout: "classic",
+    state: "Merged",
+    comments_captured: 2,
+    partial: false,
+  });
+  expect(doc.meta.warnings).toBeUndefined();
+  expect(doc.blocks.map((b) => ("id" in b ? b.id : ""))).toEqual([
+    "pullrequest-1686710985",
+    "issuecomment-1900246824",
+    "pullrequestreview-1833035135",
+  ]);
+  expect(find(doc, "issuecomment-1900246824")).toMatchObject({
+    author: "sizebot",
+    date: "2024-01-19T11:34:53Z",
+    parent_id: "pullrequest-1686710985",
+  });
+  expect(find(doc, "pullrequestreview-1833035135")).toMatchObject({
+    author: "rickhanlonii",
+    date: "2024-01-19T15:28:22Z",
+  });
+});
+
+test("github pull request with a pagination form is partial", async () => {
+  const doc = await run(
+    githubAdapter,
+    "https://github.com/o/r/pull/28000",
+    `${await fixture("github-pr.html")}<form class="ajax-pagination-form"></form>`,
+  );
+  expect(doc.meta.coverage).toMatchObject({ partial: true });
+  expect(doc.meta.warnings?.join(" ")).toContain("load-more");
+});
+
+test("github text dates reject rollover and zone-less titles", async () => {
+  const html = (await fixture("github-issue-react.html"))
+    .replace("on Oct 6, 2026", "on Feb 31, 2026")
+    .replace(
+      '<relative-time data-component="RelativeTime">yesterday',
+      '<relative-time title="Dec 3, 2015, 2:31 PM" data-component="RelativeTime">yesterday',
+    );
+  const doc = await run(
+    githubAdapter,
+    "https://github.com/o/r/issues/77",
+    html,
+  );
+  expect(find(doc, "issuecomment-5002")).not.toHaveProperty("date");
+  expect(find(doc, "issuecomment-5004")).not.toHaveProperty("date");
+});
+
+test("github discussion: header author and date, nesting, and no leaking from replies", async () => {
+  const doc = await run(
+    githubAdapter,
+    "https://github.com/o/r/discussions/10640",
+    await fixture("github-discussion.html"),
+  );
+  expect(doc.meta).toMatchObject({
+    title: "Companies using Next",
+    author: "timneutkens",
+  });
+  expect(doc.meta.coverage).toMatchObject({
+    kind: "discussions",
+    state: "Unanswered",
+    comments_captured: 3,
+    partial: false,
+  });
+  expect(doc.blocks.map((b) => ("id" in b ? b.id : ""))).toEqual([
+    "discussion-112",
+    "discussioncomment-463",
+    "discussioncomment-7529593",
+    "discussioncomment-464",
+  ]);
+  expect(find(doc, "discussion-112")).toMatchObject({
+    type: "post",
+    author: "timneutkens",
+    date: "2020-02-22T12:37:53Z",
+  });
+  expect(find(doc, "discussioncomment-463")).toMatchObject({
+    author: "ana",
+    date: "2020-02-22T12:38:12Z",
+    parent_id: "discussion-112",
+    depth: 0,
+  });
+  expect(find(doc, "discussioncomment-7529593")).toMatchObject({
+    author: "bo",
+    date: "2023-11-10T04:45:55Z",
+    parent_id: "discussioncomment-463",
+    depth: 1,
+  });
+  // A comment without its own header time takes none from elsewhere.
+  const last = find(doc, "discussioncomment-464");
+  expect(last).toMatchObject({ author: "cy", parent_id: "discussion-112" });
+  expect(last).not.toHaveProperty("date");
+  const md = toMarkdown(doc);
+  expect(md).toContain("Same here.");
+  expect(md).not.toContain("permalink");
 });
 
 test("github comments sharing a wrapper id get distinct ids", async () => {

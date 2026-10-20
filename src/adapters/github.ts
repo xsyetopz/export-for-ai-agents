@@ -1,8 +1,11 @@
 /**
  * GitHub adapter (design D6): DOM only, for issue, pull request and discussion pages. Repository
  * and file pages are not matched and fall through to generic (`.markdown-body` is plain content).
- * Targets the server-rendered timeline markup; a page without it (for example the newer React
- * issue view) raises `NotThisLayoutError` so the generic adapter takes over. Page content is untrusted.
+ * Two layouts: the React issue view (`data-testid` markup) and the classic server-rendered timeline,
+ * which pull requests and discussions still use (their header is React on PRs, classic on
+ * discussions, so title and state try several selectors). A page with neither raises
+ * `NotThisLayoutError` so the generic adapter takes over. Selectors were checked against logged-out
+ * server HTML, not hydrated pages. Page content is untrusted.
  */
 
 import type { Block, ExportDocument } from "../model.ts";
@@ -14,10 +17,15 @@ import {
   NotThisLayoutError,
 } from "./types.ts";
 
+const ISSUE_BODY_LINK = "[data-testid='issue-body-header-link']";
+const MONTHS = "jan feb mar apr may jun jul aug sep oct nov dec".split(" ");
 const MAX_ITEMS = 5000;
 const KINDS = new Set(["issues", "pull", "discussions"]);
 const ID_PREFIX =
-  "[id^='issuecomment-'],[id^='discussioncomment-'],[id^='discussion-'],[id^='issue-'],[id^='pullrequestreview-'],[id^='discussion_r']";
+  "[id^='issuecomment-'],[id^='discussioncomment-'],[id^='discussion-'],[id^='issue-'],[id^='pullrequest-'],[id^='pullrequestreview-'],[id^='discussion_r']";
+/** A full comment id; rejects descendants such as `issuecomment-1-permalink` or `discussion-edit-history-1-text`. */
+const FULL_ID =
+  /^(?:(?:issuecomment|discussioncomment|pullrequestreview|pullrequest|issue|discussion)-\d+|discussion_r\d+)$/;
 /** Copy buttons and anchors inside rendered Markdown are chrome, not content. */
 const CHROME =
   "clipboard-copy,.zeroclipboard-container,.js-comment-edit-history";
@@ -50,7 +58,8 @@ interface Layout {
   date: string;
   /** Tried in order; the first with text wins. */
   title: string[];
-  state: string;
+  /** Tried in order; the first with text wins. */
+  state: string[];
   /** Hidden timeline items or a "load more" control. */
   more: string;
 }
@@ -61,33 +70,109 @@ const CLASSIC: Layout = {
   items: ".timeline-comment",
   body: ".comment-body",
   author:
-    ".timeline-comment-header .author, .timeline-comment-header a[data-hovercard-type='user']",
-  date: ".timeline-comment-header relative-time, .timeline-comment-header time-ago, .timeline-comment-header time",
-  title: ["bdi.js-issue-title", "h1.gh-header-title"],
-  state: ".gh-header-meta .State",
+    ".timeline-comment-header .author, .timeline-comment-header a[data-hovercard-type='user'], .timeline-comment-header-text a.Link--primary",
+  date: ".timeline-comment-header relative-time, .timeline-comment-header time-ago, .timeline-comment-header time, .timeline-comment-header-text relative-time, .js-timestamp relative-time",
+  title: ["h1 .markdown-title", "h1 .js-issue-title", "bdi.js-issue-title"],
+  state: [
+    "[data-component='PageHeader.Description'] [data-component='StateLabel']",
+    "#discussion_bucket .State",
+    ".gh-header-meta .State",
+  ],
   more: ".ajax-pagination-form, .js-timeline-item .js-pagination-marker",
 };
 
 /**
- * React issue view. Hand-written from the markup as remembered, not verified against live pages:
- * if GitHub renames these test ids the adapter finds no items and generic takes over.
+ * React issue view. Verified against logged-out server HTML from 2026-10; hydration is unverified
+ * (server `relative-time` has no `datetime`, so dates fall back to the text). If GitHub renames
+ * these test ids the adapter finds no items and generic takes over.
  */
 const REACT: Layout = {
   name: "react",
   items: "[data-testid='issue-body'], .react-issue-comment",
   body: "[data-testid='markdown-body']",
   author:
-    "[data-testid='issue-body-header-author'], [data-testid='comment-header'] a[data-hovercard-url*='/users/'], [data-testid='comment-header'] a[href^='/']",
-  date: ":is([data-testid='issue-body-header'], [data-testid='comment-header']) :is(relative-time, time-ago, time)",
+    "[data-testid='issue-body-header-author'], [data-testid='comment-header'] [data-testid='avatar-link']",
+  date: "[data-testid='issue-body-header-link'] relative-time, [data-testid='comment-header'] a[href*='#issuecomment-'] relative-time",
   title: ["[data-testid='issue-title'] bdi", "[data-testid='issue-title']"],
-  state: "[data-testid='header-state']",
-  more: "[data-testid*='load-more'], [data-testid*='timeline-load']",
+  state: ["[data-testid='header-state']"],
+  more: "[data-testid*='load-more']",
 };
 
 function itemsOf(doc: Document, layout: Layout): Element[] {
   return Array.from(doc.querySelectorAll(layout.items)).filter((el) =>
-    el.querySelector(layout.body),
+    ownMatch(el, layout.body, layout),
   );
+}
+
+/** The first match that belongs to `item` itself, not to a reply nested inside it. */
+function ownMatch(item: Element, selector: string, layout: Layout) {
+  for (const el of item.querySelectorAll(selector))
+    if (el.closest(layout.items) === item) return el;
+  return null;
+}
+
+/** Login from a profile link (`/login` or `https://github.com/login`), else the visible text. */
+function authorOf(el: Element | null): string | undefined {
+  if (!el) return undefined;
+  const href = el.getAttribute("href");
+  if (href) {
+    try {
+      const url = new URL(href, "https://github.com");
+      const match = /^\/([A-Za-z0-9][A-Za-z0-9-]*)$/.exec(url.pathname);
+      if (url.origin === "https://github.com" && match?.[1]) return match[1];
+    } catch {
+      // fall through to the text
+    }
+  }
+  return clean(el.textContent) || undefined;
+}
+
+/**
+ * ISO date of a time element: `datetime`, then `title`, then text such as "on Dec 3, 2015" (what the
+ * server HTML has, taken as UTC midnight). Anything that does not parse is dropped.
+ */
+/** Only ISO-like text with an explicit zone; zone-less strings would parse as local time. */
+function zonedOnly(value: string | null): string | null {
+  return value &&
+    /^\d{4}-\d\d-\d\d[T ].*(?:Z|[+-]\d{2}:?\d{2})$/i.test(value.trim())
+    ? value
+    : null;
+}
+
+function dateOf(el: Element | null): string | undefined {
+  if (!el) return undefined;
+  const fromAttr =
+    isoDate(el.getAttribute("datetime")) ??
+    isoDate(zonedOnly(el.getAttribute("title")));
+  if (fromAttr) return fromAttr;
+  const text = clean(el.textContent).replace(/^on\s+/i, "");
+  const match = /^([A-Za-z]{3})[A-Za-z]*\.? (\d{1,2}), (\d{4})$/.exec(text);
+  const month = MONTHS.indexOf((match?.[1] ?? "").toLowerCase()) + 1;
+  if (!match || !month) return undefined;
+  const day = (match[2] ?? "").padStart(2, "0");
+  // Reject rollover such as "Feb 31".
+  const probe = new Date(Date.UTC(Number(match[3]), month - 1, Number(day)));
+  if (probe.getUTCMonth() !== month - 1 || probe.getUTCDate() !== Number(day))
+    return undefined;
+  return isoDate(`${match[3]}-${String(month).padStart(2, "0")}-${day}`);
+}
+
+/** A full comment id on `el`, an ancestor, or a descendant (in that order), or "". */
+function commentId(el: Element): string {
+  if (FULL_ID.test(el.id)) return el.id;
+  for (let p = el.parentElement; p; p = p.parentElement)
+    if (FULL_ID.test(p.id)) return p.id;
+  for (const d of el.querySelectorAll(ID_PREFIX))
+    if (FULL_ID.test(d.id)) return d.id;
+  return "";
+}
+
+/** The React issue body has no comment id; its header link points at `#issue-N`. */
+function issueBodyId(el: Element, layout: Layout): string {
+  if (layout.name !== "react") return "";
+  const href = ownMatch(el, ISSUE_BODY_LINK, layout)?.getAttribute("href");
+  const fragment = href?.split("#")[1] ?? "";
+  return FULL_ID.test(fragment) ? fragment : "";
 }
 
 async function capture(ctx: CaptureContext): Promise<ExportDocument> {
@@ -119,9 +204,10 @@ async function capture(ctx: CaptureContext): Promise<ExportDocument> {
   const used = new Set<string>();
   const uniqueId = (el: Element, index: number): string => {
     // The comment's own id first; a shared ancestor id may belong to several comments.
-    const own = el.matches(ID_PREFIX) ? el : el.querySelector(ID_PREFIX);
-    const wrapper = own ?? el.closest(ID_PREFIX);
-    const base = wrapper?.id || `${target.kind}-${target.number}-c${index}`;
+    const base =
+      issueBodyId(el, layout) ||
+      commentId(el) ||
+      `${target.kind}-${target.number}-c${index}`;
     let id = base;
     for (let n = 2; used.has(id); n++) id = `${base}-${n}`;
     used.add(id);
@@ -138,13 +224,20 @@ async function capture(ctx: CaptureContext): Promise<ExportDocument> {
       break;
     }
     const id = uniqueId(el, index);
-    const author =
-      clean(el.querySelector(layout.author)?.textContent) || undefined;
-    const date = isoDate(
-      el.querySelector(layout.date)?.getAttribute("datetime"),
-    );
+    const author = authorOf(ownMatch(el, layout.author, layout));
+    // A PR review keeps its timestamp in a wrapper around the item.
+    const wrapper = el.parentElement?.closest("[id^='pullrequestreview-']");
+    const review =
+      wrapper && wrapper.querySelector(layout.items) === el ? wrapper : null;
+    const date =
+      dateOf(ownMatch(el, layout.date, layout)) ??
+      dateOf(
+        review?.querySelector(
+          "a.js-timestamp[href^='#pullrequestreview-'] relative-time",
+        ) ?? null,
+      );
     const content = await bodies.blocks(
-      el.querySelector(layout.body) as Element,
+      ownMatch(el, layout.body, layout) as Element,
     );
     const common = {
       id,
@@ -189,7 +282,11 @@ async function capture(ctx: CaptureContext): Promise<ExportDocument> {
   if (bodies.truncated) warnings.push("An oversized block was cut or dropped.");
   for (const w of bodies.warnings) warnings.push(w);
 
-  const state = textOf(doc, layout.state);
+  let state = "";
+  for (const selector of layout.state) {
+    state = textOf(doc, selector);
+    if (state) break;
+  }
   const first = blocks[0];
   const canonical = bodies.url(
     `https://github.com/${target.owner}/${target.repo}/${target.kind}/${target.number}`,
