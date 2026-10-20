@@ -73,8 +73,9 @@ matches an entry. It SHALL match by id, never by position. Other timeline events
 
 ### Requirement: Embedded JSON is read as data
 
-The adapter SHALL parse the embedded JSON as data and SHALL NOT evaluate it. It SHALL skip a script over
-1,000,000 characters or one that does not parse, and the capture SHALL still complete.
+The adapter SHALL parse the embedded JSON as data and SHALL NOT evaluate it. It SHALL read every
+`react-app.embeddedData` script, up to 8, skipping any over 1,000,000 characters or that does not parse, and SHALL
+keep the first time found for each id. The capture SHALL still complete.
 
 #### Scenario: Malformed JSON
 
@@ -85,6 +86,11 @@ The adapter SHALL parse the embedded JSON as data and SHALL NOT evaluate it. It 
 
 - **WHEN** the embedded JSON script is longer than 1,000,000 characters
 - **THEN** the script is skipped and dates fall back to `datetime` or text
+
+#### Scenario: Time only in a later script
+
+- **WHEN** the first embedded-data script is malformed and the second holds the comment's `createdAt`
+- **THEN** the comment takes the time from the second script
 
 ### Requirement: Ids are full comment ids
 
@@ -115,3 +121,18 @@ The adapter SHALL mark the capture partial with a warning when a load-more contr
 
 - **WHEN** an `.ajax-pagination-form` is present
 - **THEN** coverage `partial` is true and a warning is added
+
+### Requirement: Impossible dates are omitted
+
+The adapter SHALL omit a date whose written month, day, hour, minute or second is out of range, and SHALL NOT
+roll it over to another day.
+
+#### Scenario: Day out of range
+
+- **WHEN** a `datetime` is "2026-02-30" or the text is "Feb 31, 2026"
+- **THEN** the block has no date from that source
+
+#### Scenario: Offset crossing midnight
+
+- **WHEN** a `datetime` is "2026-10-31T23:30:00-02:00"
+- **THEN** the date is `2026-11-01T01:30:00Z`
