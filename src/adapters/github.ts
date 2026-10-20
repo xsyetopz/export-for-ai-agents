@@ -10,6 +10,7 @@
 
 import type { Block, ExportDocument } from "../model.ts";
 import { createBodyCapturer } from "./generic.ts";
+import { MAX_JSONLD_CHARS } from "./jsonld.ts";
 import { clean, isoDate, textOf, threadMeta } from "./thread-dom.ts";
 import {
   type Adapter,
@@ -20,6 +21,9 @@ import {
 const ISSUE_BODY_LINK = "[data-testid='issue-body-header-link']";
 const MONTHS = "jan feb mar apr may jun jul aug sep oct nov dec".split(" ");
 const MAX_ITEMS = 5000;
+const EMBEDDED_DATA = "script[data-target='react-app.embeddedData']";
+const MAX_EMBEDDED_DEPTH = 24;
+const MAX_EMBEDDED_NODES = 100_000;
 const KINDS = new Set(["issues", "pull", "discussions"]);
 const ID_PREFIX =
   "[id^='issuecomment-'],[id^='discussioncomment-'],[id^='discussion-'],[id^='issue-'],[id^='pullrequest-'],[id^='pullrequestreview-'],[id^='discussion_r']";
@@ -139,12 +143,63 @@ function zonedOnly(value: string | null): string | null {
     : null;
 }
 
-function dateOf(el: Element | null): string | undefined {
-  if (!el) return undefined;
-  const fromAttr =
-    isoDate(el.getAttribute("datetime")) ??
-    isoDate(zonedOnly(el.getAttribute("title")));
-  if (fromAttr) return fromAttr;
+/**
+ * Exact times from the React page's embedded JSON, keyed by full DOM id (`issue-N`,
+ * `issuecomment-N`). The issue has no `__typename`, so it is recognised by sitting under
+ * `repository.issue`; comments by `__typename: "IssueComment"`. Other timeline events share the
+ * same fields and are ignored. Parsed as data only; oversized or malformed scripts are skipped.
+ */
+function embeddedTimes(doc: Document): Map<string, string> {
+  const times = new Map<string, string>();
+  const text = doc.querySelector(EMBEDDED_DATA)?.textContent ?? "";
+  if (!text || text.length > MAX_JSONLD_CHARS) return times;
+  let root: unknown;
+  try {
+    root = JSON.parse(text);
+  } catch {
+    return times;
+  }
+  const add = (prefix: string, node: Record<string, unknown>) => {
+    const { databaseId, createdAt } = node;
+    if (!Number.isSafeInteger(databaseId) || typeof createdAt !== "string")
+      return;
+    const iso = isoDate(zonedOnly(createdAt));
+    const key = `${prefix}-${databaseId}`;
+    if (iso && !times.has(key)) times.set(key, iso);
+  };
+  const stack: {
+    value: unknown;
+    depth: number;
+    key: string;
+    parent: string;
+  }[] = [{ value: root, depth: 0, key: "", parent: "" }];
+  let seen = 0;
+  while (stack.length && seen++ < MAX_EMBEDDED_NODES) {
+    const { value, depth, key, parent } = stack.pop() as (typeof stack)[number];
+    if (!value || typeof value !== "object" || depth > MAX_EMBEDDED_DEPTH)
+      continue;
+    if (!Array.isArray(value)) {
+      const node = value as { __typename?: unknown } & Record<string, unknown>;
+      if (node.__typename === "IssueComment") add("issuecomment", node);
+      else if (key === "issue" && parent === "repository" && !node.__typename)
+        add("issue", node);
+    }
+    const entries = Array.isArray(value)
+      ? value.map((v, i) => [String(i), v] as const)
+      : Object.entries(value);
+    for (const [k, v] of entries)
+      stack.push({ value: v, depth: depth + 1, key: k, parent: key });
+  }
+  return times;
+}
+
+function dateOf(el: Element | null, embedded?: string): string | undefined {
+  if (!el) return embedded;
+  const fromDatetime = isoDate(el.getAttribute("datetime"));
+  if (fromDatetime) return fromDatetime;
+  if (embedded) return embedded;
+  const fromTitle = isoDate(zonedOnly(el.getAttribute("title")));
+  if (fromTitle) return fromTitle;
   const text = clean(el.textContent).replace(/^on\s+/i, "");
   const match = /^([A-Za-z]{3})[A-Za-z]*\.? (\d{1,2}), (\d{4})$/.exec(text);
   const month = MONTHS.indexOf((match?.[1] ?? "").toLowerCase()) + 1;
@@ -193,6 +248,7 @@ async function capture(ctx: CaptureContext): Promise<ExportDocument> {
 
   const bodies = createBodyCapturer(ctx, CHROME);
   bodies.checkAbort();
+  const embedded = layout.name === "react" ? embeddedTimes(doc) : new Map();
   const warnings: string[] = [];
   let title = "";
   for (const selector of [...layout.title, "h1"]) {
@@ -230,7 +286,7 @@ async function capture(ctx: CaptureContext): Promise<ExportDocument> {
     const review =
       wrapper && wrapper.querySelector(layout.items) === el ? wrapper : null;
     const date =
-      dateOf(ownMatch(el, layout.date, layout)) ??
+      dateOf(ownMatch(el, layout.date, layout), embedded.get(id)) ??
       dateOf(
         review?.querySelector(
           "a.js-timestamp[href^='#pullrequestreview-'] relative-time",

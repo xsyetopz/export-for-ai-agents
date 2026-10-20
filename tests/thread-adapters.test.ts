@@ -367,6 +367,11 @@ test("generic converter warnings and per-body media reach the meta", async () =>
   expect(images).toHaveLength(2);
 });
 
+const EMBEDDED_SCRIPT =
+  /<script[^>]*react-app\.embeddedData[^>]*>[\s\S]*?<\/script>\n?/;
+const withoutEmbedded = (html: string) => html.replace(EMBEDDED_SCRIPT, "");
+const REACT_URL = "https://github.com/o/r/issues/77";
+
 test("github react view: logins, text dates, clean ids and a load-more warning", async () => {
   const doc = await run(
     githubAdapter,
@@ -376,7 +381,7 @@ test("github react view: logins, text dates, clean ids and a load-more warning",
   expect(doc.meta).toMatchObject({
     title: "Dark mode flickers",
     author: "octo",
-    published: "2026-10-05T00:00:00Z",
+    published: "2026-10-05T09:12:44Z",
   });
   expect(doc.meta.coverage).toMatchObject({
     layout: "react",
@@ -392,17 +397,146 @@ test("github react view: logins, text dates, clean ids and a load-more warning",
     "issuecomment-5003",
     "issuecomment-5004",
   ]);
+  expect(doc.blocks[0]).toMatchObject({ date: "2026-10-05T09:12:44Z" });
   expect(doc.blocks[1]).toMatchObject({
     author: "maint",
-    date: "2026-10-06T00:00:00Z",
+    date: "2026-10-06T14:21:09Z",
     parent_id: "issue-5001",
   });
-  // The datetime attribute wins over the text; the login wins over the display name.
+  // The datetime attribute wins over the JSON; the login wins over the display name.
   expect(doc.blocks[2]).toMatchObject({
     author: "octo",
     date: "2026-10-07T08:00:00Z",
   });
   expect(find(doc, "issuecomment-5004")).not.toHaveProperty("date");
+});
+
+test("github embedded JSON: missing, malformed or oversized scripts fall back to text", async () => {
+  const base = await fixture("github-issue-react.html");
+  const variants = {
+    none: withoutEmbedded(base),
+    "5002 removed": base.replace(
+      '{"node":{"__typename":"IssueComment","databaseId":5002,"createdAt":"2026-10-06T14:21:09Z"}},',
+      "",
+    ),
+    malformed: base.replace('{"payload"', '{"payload":'),
+    oversized: base.replace(
+      '{"payload"',
+      `{"pad":"${"x".repeat(1_000_001)}","payload"`,
+    ),
+  };
+  for (const [name, html] of Object.entries(variants)) {
+    expect(html === base).toBe(false);
+    const doc = await run(githubAdapter, REACT_URL, html);
+    expect(find(doc, "issuecomment-5002"), name).toMatchObject({
+      date: "2026-10-06T00:00:00Z",
+    });
+    expect(find(doc, "issuecomment-5004"), name).not.toHaveProperty("date");
+  }
+  const none = await run(githubAdapter, REACT_URL, variants.none);
+  expect(none.meta.published).toBe("2026-10-05T00:00:00Z");
+  const partial = await run(githubAdapter, REACT_URL, variants["5002 removed"]);
+  expect(partial.meta.published).toBe("2026-10-05T09:12:44Z");
+  expect(find(partial, "issuecomment-5003")).toMatchObject({
+    date: "2026-10-07T08:00:00Z",
+  });
+});
+
+test("github embedded JSON: comments map by id, not position", async () => {
+  const base = await fixture("github-issue-react.html");
+  // Drop 5003's datetime so its JSON time is what shows.
+  const swapped = base.replace(' datetime="2026-10-07T08:00:00Z"', "");
+  // Rebuild the JSON with 5003 listed before 5002.
+  const json = {
+    payload: {
+      issueViewerRoute: {
+        data: {
+          repository: {
+            issue: {
+              databaseId: 5001,
+              createdAt: "2026-10-05T09:12:44Z",
+              timelineItems: {
+                edges: [
+                  {
+                    node: {
+                      __typename: "IssueComment",
+                      databaseId: 5003,
+                      createdAt: "2026-10-07T03:15:00Z",
+                    },
+                  },
+                  {
+                    node: {
+                      __typename: "LabeledEvent",
+                      databaseId: 5004,
+                      createdAt: "2026-10-08T10:00:00Z",
+                    },
+                  },
+                  {
+                    node: {
+                      __typename: "IssueComment",
+                      databaseId: 5002,
+                      createdAt: "2026-10-06T14:21:09Z",
+                    },
+                  },
+                ],
+              },
+            },
+          },
+        },
+      },
+    },
+  };
+  const html = swapped.replace(
+    /(<script[^>]*react-app\.embeddedData[^>]*>)[\s\S]*?(<\/script>)/,
+    `$1${JSON.stringify(json)}$2`,
+  );
+  const doc = await run(githubAdapter, REACT_URL, html);
+  expect(find(doc, "issuecomment-5002")).toMatchObject({
+    date: "2026-10-06T14:21:09Z",
+  });
+  expect(find(doc, "issuecomment-5003")).toMatchObject({
+    date: "2026-10-07T03:15:00Z",
+  });
+  expect(find(doc, "issuecomment-5004")).not.toHaveProperty("date");
+});
+
+test("github embedded JSON: no time element, duplicate ids and offsets", async () => {
+  const base = await fixture("github-issue-react.html");
+  // (a) 5002 has no relative-time at all, but its id matches the JSON.
+  const bare = base
+    .replace(/<relative-time[^>]*>on<!-- --> Oct 9, 2026 <\/relative-time>/, "")
+    .replace(/<relative-time[^>]*>on Oct 6, 2026<\/relative-time>/, "");
+  expect(bare).not.toContain("Oct 6, 2026");
+  const a = await run(githubAdapter, REACT_URL, bare);
+  expect(find(a, "issuecomment-5002")).toMatchObject({
+    date: "2026-10-06T14:21:09Z",
+  });
+  // (b) A second item with the same id is deduped to -2 and must not inherit 5002's time.
+  const block =
+    /<div class="react-issue-comment">\n<div id="issuecomment-5002"[\s\S]*?<\/div>\n<\/div>\n/.exec(
+      base,
+    )?.[0] as string;
+  expect(block).toBeTruthy();
+  const b = await run(
+    githubAdapter,
+    REACT_URL,
+    base.replace(block, block + block),
+  );
+  expect(find(b, "issuecomment-5002")).toMatchObject({
+    date: "2026-10-06T14:21:09Z",
+  });
+  expect(find(b, "issuecomment-5002-2")).toMatchObject({
+    date: "2026-10-06T00:00:00Z",
+  });
+  // (c) A non-UTC offset is normalised to UTC.
+  const c = await run(
+    githubAdapter,
+    REACT_URL,
+    base.replace("2026-10-06T14:21:09Z", "2026-10-06T16:21:09+02:00"),
+  );
+  expect(find(c, "issuecomment-5002")).toMatchObject({
+    date: "2026-10-06T14:21:09Z",
+  });
 });
 
 test("github pull request: header title and state, ids, review date and hidden items", async () => {
@@ -450,7 +584,7 @@ test("github pull request with a pagination form is partial", async () => {
 });
 
 test("github text dates reject rollover and zone-less titles", async () => {
-  const html = (await fixture("github-issue-react.html"))
+  const html = withoutEmbedded(await fixture("github-issue-react.html"))
     .replace("on Oct 6, 2026", "on Feb 31, 2026")
     .replace(
       '<relative-time data-component="RelativeTime">yesterday',
