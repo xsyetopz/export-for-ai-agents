@@ -2,21 +2,27 @@
 name: Export for AI Agents
 description: Toolbar popup that exports the current page as Markdown or JSONL; a Swiss typographic sheet.
 colors:
-  ultramarine: "#1f2a9e"
-  ultramarine-bright-dark: "#3a48d6"
-  ultramarine-ink-dark: "#a5aeff"
+  graphite: "#1c1c1c"
+  graphite-dark: "#2c2c2c"
+  accent-dark: "#e8e8e8"
+  primary-hover: "#3a3a3a"
+  primary-hover-dark: "#cfcfcf"
+  on-accent: "#ffffff"
+  on-accent-dark: "#121212"
   band-ink: "#ffffff"
-  band-tint: "#c9ceff"
-  tint: "#d6d9ff"
-  tint-dark: "#2c3380"
+  band-ink-dark: "#f2f2f2"
+  band-tint: "#c8c8c8"
+  band-tint-dark: "#b4b4b4"
+  tint: "#e0e0e0"
+  tint-dark: "#3a3a3a"
   paper: "#ffffff"
-  paper-dark: "#0d0e13"
-  ink: "#101218"
-  ink-dark: "#f1f2f6"
-  muted: "#4d5260"
-  muted-dark: "#a6aab8"
-  rule: "#c4c7d0"
-  rule-dark: "#3a3d4a"
+  paper-dark: "#121212"
+  ink: "#141414"
+  ink-dark: "#f2f2f2"
+  muted: "#555555"
+  muted-dark: "#a8a8a8"
+  rule: "#8f8f8f"
+  rule-dark: "#666666"
   amber: "#8a5a00"
   amber-dark: "#f0b429"
   red: "#b3261e"
@@ -65,20 +71,20 @@ spacing:
   s5: "24px"
 components:
   band:
-    backgroundColor: "{colors.ultramarine}"
+    backgroundColor: "{colors.graphite}"
     textColor: "{colors.band-ink}"
     typography: "{typography.heading}"
     height: "40px"
     padding: "0 16px"
   button-primary:
-    backgroundColor: "{colors.ultramarine}"
-    textColor: "{colors.band-ink}"
+    backgroundColor: "{colors.graphite}"
+    textColor: "{colors.on-accent}"
     typography: "{typography.heading}"
     rounded: "{rounded.none}"
     padding: "8px 12px"
   button-outline:
     backgroundColor: "transparent"
-    textColor: "{colors.ultramarine}"
+    textColor: "{colors.graphite}"
     typography: "{typography.heading}"
     rounded: "{rounded.none}"
     padding: "8px 12px"
@@ -86,18 +92,18 @@ components:
     backgroundColor: "{colors.tint}"
   button-text:
     backgroundColor: "transparent"
-    textColor: "{colors.ultramarine}"
+    textColor: "{colors.graphite}"
     typography: "{typography.body}"
     padding: "8px 0"
   segment:
     backgroundColor: "transparent"
-    textColor: "{colors.ultramarine}"
+    textColor: "{colors.graphite}"
     typography: "{typography.heading}"
     rounded: "{rounded.none}"
     padding: "8px 12px"
   segment-selected:
-    backgroundColor: "{colors.ultramarine}"
-    textColor: "{colors.band-ink}"
+    backgroundColor: "{colors.graphite}"
+    textColor: "{colors.on-accent}"
   field:
     backgroundColor: "{colors.paper}"
     textColor: "{colors.ink}"
@@ -112,34 +118,34 @@ components:
 
 **Creative North Star: "The Swiss Typographic Sheet".**
 
-The popup is one flush-left sheet on a single grid, where type and numbers carry the interface. A deep ultramarine band names the tool and the host; below it, plain paper (white in light, near-black in dark) holds a segmented format switch, a row of large tabular numerals, and the actions. Structure comes from 1px rules and alignment, not from containers.
+The popup is one flush-left sheet on a single grid, where type and numbers carry the interface. A graphite band names the tool and the host; below it, plain paper (white in light, near-black in dark) holds a segmented format switch, a row of large tabular numerals, and the actions. Structure comes from 1px rules and alignment, not from containers.
 
-It is dense and quiet: a tool, not a destination. Ultramarine is the only voice. Amber and red appear only when the output is incomplete or broken. Light and dark follow `prefers-color-scheme`, with no toggle.
+It is dense and quiet: a tool, not a destination. Ink is the only voice: graphite and grey, no hue. Amber and red appear only when the output is incomplete or broken. Light and dark follow `prefers-color-scheme`, with no toggle.
 
 **Key Characteristics:**
 
 - One 3-column grid shared by the coverage row and the actions row.
 - Zero radius, 1px rules, no shadows, no gradients.
 - System sans in two weights (400/600) with tabular figures throughout.
-- Ultramarine for band, primary fill, selected segment, links and focus; amber and red only for state.
+- Ink (graphite in light, pale grey in dark) for band, primary fill, selected segment, links and focus; amber and red only for state.
 
 ## Colors
 
-One saturated ultramarine against neutral paper and ink, plus two state colors. Every color has a light and a dark value; dark tokens carry the `-dark` suffix and swap in under `prefers-color-scheme: dark`.
+A neutral graphite-and-grey palette with no hue, plus two state colors. Every color has a light and a dark value; dark tokens carry the `-dark` suffix and swap in under `prefers-color-scheme: dark`.
 
 ### Primary
 
-- **Deep Ultramarine** (ultramarine): the header band in both schemes, and the primary-button fill, selected segment, outline/text-button ink and focus ring in light.
-- **Bright Ultramarine** (ultramarine-bright-dark): replaces it as the primary fill and selected segment in dark, where deep ultramarine is too heavy on near-black.
-- **Ultramarine Ink** (ultramarine-ink-dark): the dark-scheme ink for outline and text buttons, segment borders, focus ring and caret.
-- **Band Tint** (band-tint): the host name inside the band, a step quieter than the band's white title.
+- **Graphite** (graphite / graphite-dark): the header band (near-black in light, a lifted grey in dark so it stays distinct from the page), and in light the primary-button fill, selected segment, outline/text-button ink and focus ring.
+- **Accent Ink** (accent-dark): in dark, the light grey that takes over as primary fill, selected segment, outline/text-button ink, segment borders, focus ring and caret. Labels on these fills use on-accent / on-accent-dark.
+- **Primary Hover** (primary-hover / primary-hover-dark): the primary button fill on hover, #3a3a3a in light and #cfcfcf in dark (a visible step down from the #e8e8e8 fill; the #121212 label stays above 4.5:1).
+- **Band Tint** (band-tint / band-tint-dark): the host name inside the band, a step quieter than the band's title (band-ink).
 - **Selection Tint** (tint / tint-dark): text selection and outline-button hover.
 
 ### Neutral
 
 - **Paper** (paper / paper-dark): the body background.
 - **Ink** (ink / ink-dark): body text and numerals.
-- **Muted Slate** (muted / muted-dark): labels, notes, hints, disabled buttons.
+- **Muted Grey** (muted / muted-dark): labels, notes, hints, disabled buttons.
 - **Rule Grey** (rule / rule-dark): every 1px divider and field border.
 
 ### State
@@ -147,7 +153,7 @@ One saturated ultramarine against neutral paper and ink, plus two state colors. 
 - **Amber** (amber / amber-dark): the "not captured" numeral and its explanatory note. Meaning: the output is incomplete.
 - **Signal Red** (red / red-dark): error text and the 1px top rule above it. Meaning: the export failed.
 
-**The One Voice Rule.** Ultramarine is the only accent. Amber and red are never decorative; each appears only when its state is true.
+**The One Voice Rule.** Ink is the only voice; there is no accent hue. Amber and red are never decorative; each appears only when its state is true.
 
 **The Honest Number Rule.** A numeral changes color only to report a state (amber when something was not captured). It never changes color for emphasis.
 
@@ -179,7 +185,7 @@ Error and unsupported states hide the coverage row, and unsupported also hides t
 
 ## Elevation & Depth
 
-Flat. There are no shadows, gradients or layered surfaces. Depth comes only from the ultramarine band against paper and from 1px rules.
+Flat. There are no shadows, gradients or layered surfaces. Depth comes only from the graphite band against paper and from 1px rules.
 
 **The Rule-Not-Box Rule.** Group content with a single 1px top rule, not a bordered or filled card.
 
@@ -192,15 +198,15 @@ Square everywhere: radius is 0 for every element. The 1px stroke is the only lin
 ### Buttons
 
 - **Shape:** square (0), 8px × 12px padding, 600 weight.
-- **Primary (Copy):** ultramarine fill, white label. Exactly one per sheet.
-- **Outline (Save):** 1px ultramarine-ink border and label on a transparent background; tint fill on hover.
-- **Text (Refresh):** underlined ultramarine-ink label, 3px underline offset, no box.
+- **Primary (Copy):** ink fill (graphite in light, pale grey in dark), on-accent label. Exactly one per sheet.
+- **Outline (Save):** 1px ink border and label on a transparent background; tint fill on hover.
+- **Text (Refresh):** underlined ink label, 3px underline offset, no box.
 - **Disabled:** rule-grey border, transparent fill, muted label.
 - **Motion:** background, color and border change over 120ms ease-out. Reduced motion removes all transitions.
 
 ### Segmented Control (Format)
 
-Two equal cells sharing one 1px ultramarine border (adjacent borders overlap by 1px). The selected cell is filled ultramarine with white text; the unselected cell is ultramarine-ink text on paper. Built on native radios; the focus ring is drawn on the cell.
+Two equal cells sharing one 1px ink border (adjacent borders overlap by 1px). The selected cell is filled with ink and on-accent text; the unselected cell is ink text on paper. Built on native radios; the focus ring is drawn on the cell.
 
 ### Coverage Row (Signature)
 
@@ -210,7 +216,7 @@ Three stats, each a 40px tabular numeral over a 12px muted label, on the shared 
 
 - **Style:** 1px rule-grey border, paper background, ink text, 8px padding, square.
 - **Label:** 12px muted label above the field, 4px gap.
-- **Focus:** 2px ultramarine-ink outline, 2px offset.
+- **Focus:** 2px ink outline, 2px offset.
 
 ### Error Block
 
