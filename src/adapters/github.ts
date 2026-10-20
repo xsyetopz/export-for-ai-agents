@@ -148,7 +148,8 @@ function zonedOnly(value: string | null): string | null {
  * Exact times from the React page's embedded JSON, keyed by full DOM id (`issue-N`,
  * `issuecomment-N`). The issue has no `__typename`, so it is recognised by sitting under
  * `repository.issue`; comments by `__typename: "IssueComment"`. Other timeline events share the
- * same fields and are ignored. Parsed as data only; oversized or malformed scripts are skipped.
+ * same fields and are ignored. Only issue pages carry times here: PR and discussion pages are classic
+ * server HTML whose embedded data has no `createdAt`, so they use `relative-time` `datetime`. Parsed as data only; oversized or malformed scripts are skipped.
  */
 function embeddedTimes(doc: Document): Map<string, string> {
   const times = new Map<string, string>();

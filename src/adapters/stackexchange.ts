@@ -57,11 +57,17 @@ function signature(post: Element): Element | null {
   return all[all.length - 1] ?? null;
 }
 
+/** `datetime`, else the ISO time before the first comma of `title` ("2012-06-27 12:57:01Z, License: CC BY-SA 3.0"). */
+function timeOf(el: Element | null | undefined): string | undefined {
+  const title = el?.getAttribute("title")?.split(",")[0];
+  return isoDate(el?.getAttribute("datetime")) ?? isoDate(title);
+}
+
 function postDate(post: Element): string | undefined {
   const sig = signature(post);
   if (!sig) return undefined;
   const el = sig.querySelector(".user-action-time [title], time[datetime]");
-  return isoDate(el?.getAttribute("datetime") ?? el?.getAttribute("title"));
+  return timeOf(el);
 }
 
 function postScore(post: Element): number | undefined {
@@ -112,9 +118,7 @@ async function capture(ctx: CaptureContext): Promise<ExportDocument> {
       const dateEl = row.querySelector(
         ".comment-date [title], .comment-date time",
       );
-      const date = isoDate(
-        dateEl?.getAttribute("datetime") ?? dateEl?.getAttribute("title"),
-      );
+      const date = timeOf(dateEl);
       const score = parseInteger(textOf(row, ".comment-score"));
       const content = await bodies.blocks(copy);
       blocks.push({
