@@ -11,11 +11,40 @@ interface CodeScan {
 }
 
 /**
+ * True for indented code inside block quotes: after the `>` markers (each with one optional
+ * space or tab) the rest starts with 4+ spaces or a tab, followed by content. A manual loop, not
+ * a regex: `(?:>[ ]?)+ {4}` would backtrack and accept `>    x` (four spaces, which is prose).
+ */
+function quotedIndent(raw: string): boolean {
+  let i = 0;
+  while (raw[i] === " " || raw[i] === "\t") i++;
+  if (raw[i] !== ">") return false;
+  for (;;) {
+    i++; // the `>`
+    if (raw[i] === " " || raw[i] === "\t") i++; // one optional space (or tab)
+    let j = i;
+    while (raw[j] === " ") j++;
+    if (raw[j] !== ">") break;
+    i = j;
+  }
+  let spaces = 0;
+  while (raw[i + spaces] === " ") spaces++;
+  if (spaces < 4 && raw[i] !== "\t") return false;
+  return raw.slice(i).trim() !== "";
+}
+
+/**
  * Finds code lines. Limits, kept simple on purpose: a fence may carry any `>` / whitespace
  * prefix (including tabs and deep indents); a line indented 4+ spaces or a tab is always code
  * (even inside a list or right after a paragraph); blank lines between two indented lines
  * are code; a backtick fence's info string may not contain a backtick (so ```` ```js``` ```` is
  * not a fence).
+ *
+ * Quote-aware: indented code inside `>` quotes counts too (see `quotedIndent`). Code in a list
+ * item already sits at 4+ absolute columns, so it is covered. Trade-offs: a quoted line indented
+ * 4+ right after a quoted paragraph line is code (CommonMark reads a continuation); tab handling
+ * is approximate; bare `>` lines between quoted code lines are not bridged (they are only
+ * trimmed); a nested list indented 4+ columns is read as code.
  */
 export function scanCode(lines: readonly string[]): CodeScan {
   const mask: boolean[] = new Array(lines.length).fill(false);
@@ -40,7 +69,7 @@ export function scanCode(lines: readonly string[]): CodeScan {
       open = { prefix: m[1] ?? "", marker: m[2] };
       continue;
     }
-    if (raw.trim() !== "" && INDENTED.test(raw)) {
+    if (raw.trim() !== "" && (INDENTED.test(raw) || quotedIndent(raw))) {
       mask[i] = true;
       indented[i] = true;
     }
@@ -148,7 +177,7 @@ function fixProse(
   keep: ReadonlySet<number>,
 ): string {
   let out = segment.replace(
-    /(?<!\\)(\\*)<(?=[A-Za-z])/g,
+    /(?<!\\)(\\*)<(?=[A-Za-z]|\/[A-Za-z])/g,
     (m, slashes: string, off: number, whole: string) => {
       if (slashes.length % 2 === 1) return m;
       if (keep.has(base + off + slashes.length)) return m;
@@ -204,15 +233,53 @@ const INTERRUPT = new RegExp(
   `^ {0,3}(?:\`{3,}|~{3,}|#{1,6}(?:[ \\t]|$)|>|[-+*][ \\t]+[^ \\t]|1[.)][ \\t]+[^ \\t]|(?:[-*_][ \\t]*){3,}$|[=-]+[ \\t]*$|${HTML_OPEN})`,
   "i",
 );
+/** Any non-empty ordered item; inside a list it blocks a `\` hard break even when it does not start at 1. */
+const ORDERED_ITEM = /^ {0,3}\d{1,9}[.)][ \t]+[^ \t]/;
+/** A list item marker line, which opens a list context (bullet, or ordered of any number). */
+const LIST_ITEM = /^ {0,3}(?:[-+*]|\d{1,9}[.)])[ \t]+[^ \t]/;
+
 /**
- * Lines that block a `\` hard break before them: `INTERRUPT` but with any ordered item, since the
- * break is skipped there. A `<letter` line that is not an HTML block start (or is type 7) is
+ * True when a `\` hard break is blocked before `next`: it can interrupt a paragraph, or (inside a
+ * list) is any ordered item. A `<letter` line that is not an HTML block start (or is type 7) is
  * paragraph continuation text in CommonMark, so it keeps the break.
  */
-const BLOCK_START = new RegExp(
-  `^ {0,3}(?:\`{3,}|~{3,}|#{1,6}(?:[ \\t]|$)|>|[-+*][ \\t]+[^ \\t]|\\d{1,9}[.)][ \\t]+[^ \\t]|(?:[-*_][ \\t]*){3,}$|[=-]+[ \\t]*$|${HTML_OPEN})`,
-  "i",
-);
+function blocksBreak(next: string, inList: boolean): boolean {
+  return INTERRUPT.test(next) || (inList && ORDERED_ITEM.test(next));
+}
+
+const THEMATIC = /^ {0,3}(?:[-*_][ \t]*){3,}$/;
+const SETEXT_UNDERLINE = /^ {0,3}(?:=+|-+)[ \t]*$/;
+const EMPTY_ITEM = /^ {0,3}(?:[-+*]|\d{1,9}[.)])$/;
+
+/** Leading quote markers and at most one list marker; the list marker needs content after it. */
+const CONTAINER = /^ {0,3}(?:>[ \t]?)*(?:((?:[-+*]|\d{1,9}[.)])[ \t]+))?/;
+
+/**
+ * True for a trimmed line that is itself a block marker, so a `\` hard break would become literal
+ * text in it: ATX heading, thematic break, setext underline or quote-only line. An empty list item
+ * counts only as the first line of a group (`first`); mid-paragraph it is plain text. The same
+ * markers count after container prefixes (`> # h`, `- # h`, `> ---`); a setext underline is not
+ * looked for after a list marker (`- ===` is item text) and a bare marker needs content after it.
+ */
+function noBreakLine(line: string, first: boolean): boolean {
+  if (
+    ATX.test(line) ||
+    THEMATIC.test(line) ||
+    SETEXT_UNDERLINE.test(line) ||
+    QUOTE_ONLY.test(line) ||
+    (first && EMPTY_ITEM.test(line))
+  )
+    return true;
+  const m = CONTAINER.exec(line);
+  if (!m || m[0] === "") return false;
+  const rest = line.slice(m[0].length);
+  return (
+    ATX.test(rest) ||
+    THEMATIC.test(rest) ||
+    (m[1] === undefined && SETEXT_UNDERLINE.test(rest)) ||
+    (first && EMPTY_ITEM.test(rest))
+  );
+}
 
 /** True for a trimmed line that is a link reference definition line (a `[label]:` start). */
 function isDefinition(trim: string): boolean {
@@ -274,6 +341,7 @@ function normalizeGroup(
   from: number,
   to: number,
   baseUrl: string | undefined,
+  inList: boolean,
 ): string {
   if (to - from === 1) {
     const raw = lines[from] ?? "";
@@ -283,9 +351,10 @@ function normalizeGroup(
       const text =
         hasBreakTail(raw, line.length) &&
         !line.endsWith("\\") &&
+        !noBreakLine(line, true) &&
         !opensDestination(line, true) &&
         trimmedEnd(next) > 0 &&
-        !BLOCK_START.test(next)
+        !blocksBreak(next, inList)
           ? `${line}\\`
           : line;
       const keep = text.includes("]:") ? definitionDestinations(text) : NO_KEEP;
@@ -311,9 +380,10 @@ function normalizeGroup(
       !inSpan &&
       hasBreakTail(lines[i] ?? "", line.length) &&
       !line.endsWith("\\") &&
+      !noBreakLine(line, i === from) &&
       !opensDestination(line, defOk) &&
       trimmedEnd(next) > 0 &&
-      !BLOCK_START.test(next)
+      !blocksBreak(next, inList)
     )
       trimmed[i - from] = `${line}\\`;
     defOk = defOk && isDefinition(line);
@@ -334,12 +404,23 @@ function normalizeGroup(
  * `<!DECL`, CDATA, script/pre/style/textarea, matched case-insensitively). Other `<letter` lines
  * (including type 7, a lone complete tag) are paragraph continuation text and keep the break.
  *
+ * An ordered item counts as a block start only from 1 (`1.` or `1)`), since only that can
+ * interrupt a paragraph; `a  \n2. b` keeps its break. Inside a list (the group follows a list
+ * item, directly or through indented continuation) any ordered item blocks the break.
+ *
  * Remaining approximations: a group ends at a line that can interrupt a paragraph (HTML block
- * types 1-6, ordered list from 1), but a hard break is also skipped before an ordered item not
- * starting at 1; trailing whitespace inside a multi-line span is stripped, where CommonMark keeps
- * it; a reference definition (and a bare `[label]:` line that opens a destination) counts only at
- * a group start or after another definition line, so a destination on the next line followed by
- * another definition has its later `<` escaped.
+ * types 1-6, ordered list from 1); trailing whitespace inside a multi-line span is stripped,
+ * where CommonMark keeps it; a reference definition (and a bare `[label]:` line that opens a
+ * destination) counts only at a group start or after another definition line, so a destination
+ * on the next line followed by another definition has its later `<` escaped.
+ *
+ * `a  \n01) b` keeps the break (matches micromark: only a literal `1` interrupts a paragraph);
+ * cmark treats `01)` as interrupting, so the `\` shows literally there.
+ *
+ * Known limits: only tag openers are escaped (`<x` and the closing `</x`); comment, CDATA,
+ * `<?` and `<!X` openers stay unescaped. Quoted lines never take a hard break (`> a  \n> b`
+ * gives `> a` then `> b`). A line indented 4+ columns is code even inside a list, so a nested
+ * list indented that far is left untouched.
  */
 export function normalizeBody(
   text: string,
@@ -349,6 +430,7 @@ export function normalizeBody(
   const { mask } = scanCode(lines);
   const out: string[] = [];
   let blanks = 0;
+  let inList = false;
   let i = 0;
   while (i < lines.length) {
     const raw = lines[i] ?? "";
@@ -365,6 +447,8 @@ export function normalizeBody(
       continue;
     }
     blanks = 0;
+    if (LIST_ITEM.test(raw)) inList = true;
+    else if (!/^(?: {2,}|\t)/.test(raw)) inList = false;
     let j = i + 1;
     let defOk = isDefinition(raw.slice(0, trimmedEnd(raw)));
     while (
@@ -377,7 +461,7 @@ export function normalizeBody(
       defOk = defOk && isDefinition(l.slice(0, trimmedEnd(l)));
       j++;
     }
-    out.push(normalizeGroup(lines, i, j, options.baseUrl));
+    out.push(normalizeGroup(lines, i, j, options.baseUrl, inList));
     i = j;
   }
   return out.join("\n").replace(/^\n+/, "").trimEnd();

@@ -355,6 +355,15 @@ test("normalizeBody stays linear on long backslash and space runs", () => {
   }
 });
 
+test("normalizeBody: block markers inside containers take no hard break", () => {
+  expect(normalizeBody("> # h  \nbar")).toBe("> # h\nbar");
+  expect(normalizeBody("- # h  \nbar")).toBe("- # h\nbar");
+  expect(normalizeBody("> *  \nbar")).toBe("> *\nbar");
+  expect(normalizeBody("> ---  \nbar")).toBe("> ---\nbar");
+  expect(normalizeBody("- ===  \nbar")).toBe("- ===\\\nbar");
+  expect(normalizeBody("a  \n01) b")).toBe("a\\\n01) b");
+});
+
 test("normalizeBody: bare [label]: line keeps its hard break unless it is a definition", () => {
   expect(normalizeBody("foo\n[x]:  \nbar")).toBe("foo\n[x]:\\\nbar");
   expect(normalizeBody("[x]:  \nbar")).toBe("[x]:\nbar");
@@ -367,12 +376,12 @@ test("normalizeBody: only HTML block starts (types 1-6) block a hard break", () 
   expect(normalizeBody("a  \n<notatag and text")).toBe(
     "a\\\n\\<notatag and text",
   );
-  expect(normalizeBody("a  \n<span>b</span>")).toBe("a\\\n\\<span>b</span>");
+  expect(normalizeBody("a  \n<span>b</span>")).toBe("a\\\n\\<span>b\\</span>");
   expect(normalizeBody("a  \n<b>")).toBe("a\\\n\\<b>");
   expect(normalizeBody("a  \n<divx>")).toBe("a\\\n\\<divx>");
   expect(normalizeBody("a  \n<div>")).toBe("a\n\\<div>");
   expect(normalizeBody("a  \n<DIV>")).toBe("a\n\\<DIV>");
-  expect(normalizeBody("a  \n</div>")).toBe("a\n</div>");
+  expect(normalizeBody("a  \n</div>")).toBe("a\n\\</div>");
   expect(normalizeBody("a  \n<pre>")).toBe("a\n\\<pre>");
   expect(normalizeBody("a  \n<!-- c -->")).toBe("a\n<!-- c -->");
   expect(normalizeBody("a  \n<?php")).toBe("a\n<?php");
@@ -408,3 +417,135 @@ test("normalizeBody: empty list items do not interrupt a paragraph", () => {
   expect(normalizeBody("foo  \n- ")).toBe("foo\n-");
   expect(normalizeBody("`x\n*\n<b>`")).toBe("`x\n*\n<b>`");
 });
+
+test("normalizeBody: empty bullet at paragraph start takes no hard break", () => {
+  expect(normalizeBody("*  \nbar")).toBe("*\nbar");
+});
+
+test("normalizeBody: empty ordered item at paragraph start takes no hard break", () => {
+  expect(normalizeBody("1.  \nbar")).toBe("1.\nbar");
+});
+
+test("normalizeBody: ATX heading at paragraph start takes no hard break", () => {
+  expect(normalizeBody("# h  \nbar")).toBe("# h\nbar");
+});
+
+test("normalizeBody: thematic break at paragraph start takes no hard break", () => {
+  expect(normalizeBody("---  \nbar")).toBe("---\nbar");
+});
+
+test("normalizeBody: setext underline at paragraph start takes no hard break", () => {
+  expect(normalizeBody("a\n===  \nbar")).toBe("a\n===\nbar");
+});
+
+test("normalizeBody: quote marker at paragraph start takes no hard break", () => {
+  expect(normalizeBody(">  \nbar")).toBe(">\nbar");
+});
+
+test("normalizeBody: a marker mid-paragraph keeps the hard break", () => {
+  expect(normalizeBody("a\n*  \nbar")).toBe("a\n*\\\nbar");
+});
+
+test("normalizeBody: a closing tag is escaped like an opening tag", () => {
+  expect(normalizeBody("</div>")).toBe("\\</div>");
+});
+
+test("normalizeBody: a closing tag in prose is escaped", () => {
+  expect(normalizeBody("a </b> c")).toBe("a \\</b> c");
+});
+
+test("normalizeBody: a closing tag inside a code span is left alone", () => {
+  expect(normalizeBody("use `</div>` here")).toBe("use `</div>` here");
+});
+
+test("normalizeBody: </ not followed by a letter is not a tag", () => {
+  expect(normalizeBody("1 </ 2")).toBe("1 </ 2");
+  expect(normalizeBody("a </3")).toBe("a </3");
+});
+
+test("normalizeBody: a comment opener stays unchanged", () => {
+  expect(normalizeBody("a <!-- c -->")).toBe("a <!-- c -->");
+});
+
+test("normalizeBody: a hard break precedes an ordered item not starting at 1", () => {
+  expect(normalizeBody("a  \n2. b")).toBe("a\\\n2. b");
+  expect(normalizeBody("a  \n01) b")).toBe("a\\\n01) b");
+});
+
+test("normalizeBody: an ordered item starting at 1 takes no hard break", () => {
+  expect(normalizeBody("a  \n1. b")).toBe("a\n1. b");
+});
+
+test("normalizeBody: no hard break before an ordered item inside a list", () => {
+  expect(normalizeBody("1. a  \n2. b")).toBe("1. a\n2. b");
+  expect(normalizeBody("- a\n\n  b  \n2. c")).toBe("- a\n\n  b\n2. c");
+});
+
+test("normalizeBody: a quoted ordered item keeps today's output", () => {
+  expect(normalizeBody("> a  \n> 2. b")).toBe("> a\n> 2. b");
+});
+
+test("normalizeBody: indented code inside a block quote is left untouched", () => {
+  const body = "> a\n>\n>     <b>  \n>\n>     c";
+  expect(normalizeBody(body)).toBe(body);
+});
+
+test("normalizeBody: indented code inside a nested quote is left untouched", () => {
+  const body = "> > a\n> >\n> >     <b>  \n> >\n> >     c";
+  expect(normalizeBody(body)).toBe(body);
+});
+
+test("normalizeBody: indented code after a list item inside a quote is left untouched", () => {
+  const body = "> - a\n>\n>       <b>  \n>\n>       c";
+  expect(normalizeBody(body)).toBe(body);
+});
+
+test("normalizeBody: a quote with only three columns of indent is prose", () => {
+  expect(normalizeBody(">    <b>")).toBe(">    \\<b>");
+});
+
+test("normalizeBody: indented code after a list item is left untouched", () => {
+  const body = "- a\n\n      <b>  \n\n      c";
+  expect(normalizeBody(body)).toBe(body);
+});
+
+test("image URL lines: a quoted URL line inside quoted indented code is kept", async () => {
+  const code = `> a\n>\n>     ${IMG}`;
+  expect(await postBody(code)).toContain(`>     ${IMG}`);
+});
+
+const cut40k = (unit: string): string => {
+  const text = unit.repeat(Math.ceil(40_000 / unit.length));
+  return text.slice(0, 40_000);
+};
+
+const timeMs = (text: string): number => {
+  normalizeBody(text);
+  let best = Number.POSITIVE_INFINITY;
+  for (let i = 0; i < 3; i++) {
+    const t = performance.now();
+    normalizeBody(text);
+    best = Math.min(best, performance.now() - t);
+  }
+  return best;
+};
+
+const timingCases: [string, string][] = [
+  ["many closing-tag openers", cut40k("a </b c </ d </3 ")],
+  ["a long run of </", cut40k("</")],
+  ["a long run of </ on one line with newlines", cut40k("</</</</\n")],
+  ["one deeply nested > line", cut40k("> ")],
+  ["one line of > with no spaces", cut40k(">")],
+  ["many quoted indented lines", cut40k(">     x  \n")],
+  ["many >>>>>> lines", cut40k(">>>>>>\n")],
+  ["many mixed-tab quote lines", cut40k("> \t> \n")],
+  ["many empty bullets with trailing spaces", cut40k("*  \n")],
+  ["many empty dash and numbered bullets", cut40k("-  \n1.  \n")],
+  ["one long line of empty bullet markers", cut40k("*  ")],
+];
+
+for (const [name, text] of timingCases) {
+  test(`normalizeBody under 100 ms on 40k chars: ${name}`, () => {
+    expect(timeMs(text)).toBeLessThan(100);
+  });
+}
